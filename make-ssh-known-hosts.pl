@@ -21,22 +21,31 @@
 # must be preserved on all copies.
 ######################################################################
 #         Program: make-ssh-known-hosts.pl
-#	  $Source: make-ssh-knwon-hosts.pl,v $
-#	  Author : $Author: kivinen $
+#	  $Source: /p/shadows/CVS/ssh/make-ssh-known-hosts.pl,v $
+#	  Author : $Author: ylo $
 #
 #	  (C) Tero Kivinen 1995 <Tero.Kivinen@hut.fi>
 #
 #	  Creation          : 19:52 Jun 27 1995 kivinen
-#	  Last Modification : 20:24 Jul 9 1995 kivinen
-#	  Last check in     : $Date: 1994/05/26 08:29:52 $
-#	  Revision number   : $Revision: 1.1 $
+#	  Last Modification : 10:51 Jul 14 1995 kivinen
+#	  Last check in     : $Date: 1995/08/29 22:37:39 $
+#	  Revision number   : $Revision: 1.3 $
 #	  State             : $State: Exp $
-#	  Version	    : 1.193
-#	  Edit time	    : 40 min
+#	  Version	    : 1.214
+#	  Edit time	    : 63 min
 #
 #	  Description       : Make ssh-known-host file from dns data.
 #
-#	  $Log: make-ssh-known-hosts,v $
+#	  $Log: make-ssh-known-hosts.pl,v $
+# Revision 1.3  1995/08/29  22:37:39  ylo
+# 	Now uses GlobalKnownHostsFile and UserKnownHostsFile.
+#
+# Revision 1.2  1995/07/15  13:26:37  ylo
+# 	Changes from kivinen.
+#
+# Revision 1.1.1.1  1995/07/12  22:41:05  ylo
+# Imported ssh-1.0.0.
+#
 #
 #
 # If you have any useful modifications or extensions please send them to
@@ -61,7 +70,8 @@ $nslookup = "nslookup";
 $ping="ping";
 $pingpreoptions=undef;
 $pingpostoptions=undef;
-$ssh="ssh -x";
+$ssh="ssh -x -a -o 'FallBackToRsh no' -o 'GlobalKnownHostsFile /dev/null' -o 'UserKnownHostsFile /tmp/ssh_known_hosts'";
+$sshdisablepasswordoption="-o 'PasswordAuthentication no'";
 $defserver = '';
 $bell='\a';
 $public_key = '/etc/ssh_host_key.pub';
@@ -70,9 +80,10 @@ if (!defined($ENV{'HOME'})) {
 	getpwuid($<);
     $ENV{'HOME'} = $dir;
 }
-$private_ssh_known_hosts = "$ENV{'HOME'}/.ssh/known_hosts";
+$private_ssh_known_hosts = "/tmp/ssh_known_hosts";
+unlink($private_ssh_known_hosts);
 $timeout = 60;
-$passwordtimeout = 600;
+$passwordtimeout = undef;
 $trustdaemon = 0;
 $domainnamesplit = 0;
 
@@ -97,7 +108,10 @@ if (defined($opt_debug)) { $debug = $opt_debug; }
 
 if (defined($opt_timeout)) { $timeout = $opt_timeout; }
 
-if (defined($opt_passwordtimeout)) { $passwordtimeout = $opt_passwordtimeout; }
+if (defined($opt_passwordtimeout)) {
+    $passwordtimeout = $opt_passwordtimeout;
+    $sshdisablepasswordoption = '';
+}
 
 if (defined($opt_trustdaemon)) { $trustdaemon = $opt_trustdaemon; }
 
@@ -113,7 +127,9 @@ if (defined($opt_pingpostoptions)) { $ping = $opt_pingpostoptions; }
 
 if (defined($opt_pingpreoptions)) { $ping = $opt_pingpreoptions; }
 
-if (defined($opt_ssh)) { $ssh = $opt_ssh; }
+if (defined($opt_ssh)) { $ssh = $opt_ssh; } else {
+    $ssh = "$ssh $sshdisablepasswordoption";
+}
 
 if ($#ARGV == 0) {
     $domain = "\L$ARGV[0]\E";
@@ -229,7 +245,11 @@ debug(0, "Getting DNS database from server $server");
 open(DNS, "echo ls -d $domain | nslookup - $server 2>&1 |") ||
     die "Error: Could not start nslookup to make dns list : $!\nError: Try giving --nslookup option and telling the path to nslookup program\n";
 
+$hostcnt = 0;
+$cnamecnt = 0;
+$lines = 0;
 while(<DNS>) {
+    $lines++;
     if (/^\s+(\S+)\s+(\S+)\s+(.*)\s*$/) {
 	$host = "\L$1\E";
 	$field = "\L$2\E";
@@ -246,6 +266,7 @@ while(<DNS>) {
 		    $host{$host} .= ",$data";
 		} else {
 		    $host{$host} = "$data";
+		    $hostcnt++;
 		}
 		debug(30, "$host A == $host{$host}");
 	    }
@@ -255,6 +276,7 @@ while(<DNS>) {
 		    $cname{$data} .= ",$host";
 		} else {
 		    $cname{$data} = "$host";
+		    $cnamecnt++;
 		}
 		debug(30, "$host CNAME $data");
 	    }
@@ -267,6 +289,7 @@ while(<DNS>) {
     }
 }
 close(DNS);
+debug(0, "Found $hostcnt hosts, $cnamecnt CNAMEs (total $lines lines)");
 
 ######################################################################
 # Print header
@@ -303,7 +326,7 @@ foreach $i (sort (keys %host)) {
 		if ($trusted) {
 		    debug(2, "Ssh to $i succeded");
 		} else {
-		    debug(2, "Ssh to $i failed, using .ssh/known_hosts entry");
+		    debug(2, "Ssh to $i failed, using local known_hosts entry");
 		}
 		@hostnames = ();
 		if (defined($cname{$i})) {
@@ -336,6 +359,7 @@ foreach $i (sort (keys %host)) {
     }
 }
 
+unlink($private_ssh_known_hosts);
 exit (0);
 
 ######################################################################
@@ -453,8 +477,15 @@ sub try_ssh {
 	    }
 	}
 	if ($buf =~ /^password: $/i) {
-	    $tmout = $passwordtimeout;
-	    print(STDERR "$bell\n\rPassword: ");
+	    if (defined($passwordtimeout)) {
+		$tmout = $passwordtimeout;
+		print(STDERR "$bell\n\rPassword: ");
+		if ($tmout == 0) {
+		    $tmout = undef;
+		}
+	    } else {
+		$tmout = 0;
+	    }
 	    $buf = '';
 	    $pos = 0;
 	}

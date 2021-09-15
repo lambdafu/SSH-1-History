@@ -8,14 +8,28 @@ Copyright (c) 1995 Tatu Ylonen <ylo@cs.hut.fi>, Espoo, Finland
                    All rights reserved
 
 Created: Wed Apr 19 16:50:42 1995 ylo
-Last modified: Wed Jul 12 00:14:13 1995 ylo
 
 */
+
+/*
+ * $Id: cipher.h,v 1.3 1995/08/18 22:48:27 ylo Exp $
+ * $Log: cipher.h,v $
+ * Revision 1.3  1995/08/18  22:48:27  ylo
+ * 	Made IDEA optional.
+ *
+ * Revision 1.2  1995/07/13  01:19:52  ylo
+ * 	Removed "Last modified" header.
+ * 	Added cvs log.
+ *
+ * $Endlog$
+ */
 
 #ifndef CIPHER_H
 #define CIPHER_H
 
+#ifndef WITHOUT_IDEA
 #include "idea.h"
+#endif /* WITHOUT_IDEA */
 #include "des.h"
 #include "tss.h"
 #include "rc4.h"
@@ -33,10 +47,12 @@ Last modified: Wed Jul 12 00:14:13 1995 ylo
 typedef struct {
   unsigned int type;
   union {
+#ifndef WITHOUT_IDEA
     struct {
       IDEAContext key;
       unsigned char iv[8];
     } idea;
+#endif /* WITHOUT_IDEA */
     struct {
       DESContext key;
       unsigned char iv[8];

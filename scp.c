@@ -6,9 +6,29 @@ to do the data transfer (instead of using rcmd).
 NOTE: This version should NOT be suid root.  (This uses ssh to do the transfer
 and ssh has the necessary privileges.)
 
-1995 Timo Rinne <tri@cs.hut.fi>, Tatu Ylonen <ylo@cs.hut.fi>
+1995 Timo Rinne <tri@iki.fi>, Tatu Ylonen <ylo@cs.hut.fi>
      
 */
+
+/*
+ * $Id: scp.c,v 1.6 1995/08/18 22:55:53 ylo Exp $
+ * $Log: scp.c,v $
+ * Revision 1.6  1995/08/18  22:55:53  ylo
+ * 	Added utimbuf kludges for NextStep.
+ * 	Added "-P port" option.
+ *
+ * Revision 1.5  1995/07/27  00:40:02  ylo
+ * 	Include utime.h only if it exists.
+ * 	Disable FallBackToRsh when running ssh from scp.
+ *
+ * Revision 1.4  1995/07/13  09:54:37  ylo
+ * 	Added Snabb's patches for IRIX 4 (SVR3) (HAVE_ST_BLKSIZE code).
+ *
+ * Revision 1.3  1995/07/13  01:37:41  ylo
+ * 	Added cvs log.
+ *
+ * $Endlog$
+ */
 
 /*
  * Copyright (c) 1983, 1990, 1992, 1993, 1995
@@ -42,7 +62,7 @@ and ssh has the necessary privileges.)
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- *	$Id: rcp.c,v 1.3 1995/03/19 13:29:14 joerg Exp $
+ *	$Id: scp.c,v 1.6 1995/08/18 22:55:53 ylo Exp $
  */
 
 #ifndef lint
@@ -54,7 +74,21 @@ char scp_berkeley_copyright[] =
 #include "includes.h"
 #include "ssh.h"
 #include "xmalloc.h"
+#ifdef HAVE_UTIME_H
 #include <utime.h>
+#ifdef _NEXT_SOURCE
+struct utimbuf {
+  time_t actime;
+  time_t modtime;
+};
+#endif /* _NEXT_SOURCE */
+#else
+struct utimbuf
+{
+  long actime;
+  long modtime;
+};
+#endif
 
 #define _PATH_CP "cp"
 
@@ -77,6 +111,9 @@ char *cipher = NULL;
 /* This is set to the RSA authentication identity file name if given on 
    the command line. */
 char *identity = NULL;
+
+/* This is the port to use in contacting the remote site (is non-NULL). */
+char *port = NULL;
 
 /* This function executes the given command as the specified user on the given
    host.  This returns < 0 if execution fails, and >= 0 otherwise.
@@ -113,6 +150,7 @@ int do_cmd(char *host, char *remuser, char *cmd, int *fdin, int *fdout)
       i = 0;
       args[i++] = SSH_PROGRAM;
       args[i++] = "-x";
+      args[i++] = "-oFallBackToRsh no";
       if (verbose)
 	args[i++] = "-v";
       if (cipher != NULL)
@@ -124,6 +162,11 @@ int do_cmd(char *host, char *remuser, char *cmd, int *fdin, int *fdout)
 	{
 	  args[i++] = "-i";
 	  args[i++] = identity;
+	}
+      if (port != NULL)
+	{
+	  args[i++] = "-p";
+	  args[i++] = port;
 	}
       args[i++] = "-l";
       args[i++] = remuser;
@@ -201,11 +244,14 @@ main(argc, argv)
 	extern int optind;
 
 	fflag = tflag = 0;
-	while ((ch = getopt(argc, argv, "dfprtvc:i:")) != EOF)
+	while ((ch = getopt(argc, argv, "dfprtvc:i:P:")) != EOF)
 		switch(ch) {			/* User-visible flags. */
 		case 'p':
 			pflag = 1;
 			break;
+		case 'P':
+		  	port = optarg;
+		  	break;
 		case 'r':
 			iamrecursive = 1;
 			break;
@@ -321,14 +367,14 @@ toremote(targ, argc, argv)
 				else if (!okname(suser))
 					continue;
 				(void)sprintf(bp, 
-				    "%s%s -x -n -l %s %s %s %s '%s%s%s:%s'",
+				    "%s%s -x -o'FallBackToRsh no' -n -l %s %s %s %s '%s%s%s:%s'",
 				    SSH_PROGRAM, verbose ? " -v" : "",
 				    suser, host, cmd, src,
 				    tuser ? tuser : "", tuser ? "@" : "",
 				    thost, targ);
 			} else
 				(void)sprintf(bp,
-				    "exec %s%s -x -n %s %s %s '%s%s%s:%s'",
+				    "exec %s%s -x -o'FallBackToRsh no' -n %s %s %s '%s%s%s:%s'",
 				    SSH_PROGRAM, verbose ? " -v" : "",
 				    argv[i], cmd, src,
 				    tuser ? tuser : "", tuser ? "@" : "",
@@ -900,7 +946,7 @@ run_err(const char *fmt, ...)
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- *	$Id: util.c,v 1.3 1995/03/19 13:29:16 joerg Exp $
+ *	$Id: scp.c,v 1.6 1995/08/18 22:55:53 ylo Exp $
  */
 
 char *
@@ -960,8 +1006,9 @@ allocbuf(bp, fd, blksize)
 	BUF *bp;
 	int fd, blksize;
 {
-	struct stat stb;
 	size_t size;
+#ifdef HAVE_ST_BLKSIZE
+	struct stat stb;
 
 	if (fstat(fd, &stb) < 0) {
 		run_err("fstat: %s", strerror(errno));
@@ -972,6 +1019,9 @@ allocbuf(bp, fd, blksize)
         else
   	  size = blksize + (stb.st_blksize - blksize % stb.st_blksize) %
 	  stb.st_blksize;
+#else /* HAVE_ST_BLKSIZE */
+	size = blksize;
+#endif /* HAVE_ST_BLKSIZE */
 	if (bp->cnt >= size)
 		return (bp);
   	if (bp->buf == NULL)

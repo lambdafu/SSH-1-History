@@ -8,11 +8,29 @@ Copyright (c) 1995 Tatu Ylonen <ylo@cs.hut.fi>, Espoo, Finland
                    All rights reserved
 
 Created: Sat Apr 22 00:03:10 1995 ylo
-Last modified: Wed Jul 12 00:17:39 1995 ylo
 
 Functions for reading the configuration files.
 
 */
+
+/*
+ * $Id: readconf.c,v 1.5 1995/09/06 19:52:36 ylo Exp $
+ * $Log: readconf.c,v $
+ * Revision 1.5  1995/09/06  19:52:36  ylo
+ * 	Fixed spelling of fascist.
+ *
+ * Revision 1.4  1995/08/21  23:25:55  ylo
+ * 	Minor cleanup.
+ *
+ * Revision 1.3  1995/07/27  00:39:00  ylo
+ * 	Added GlobalKnownHostsFile and UserKnownHostsFile.
+ *
+ * Revision 1.2  1995/07/13  01:30:39  ylo
+ * 	Removed "Last modified" header.
+ * 	Added cvs log.
+ *
+ * $Endlog$
+ */
 
 /* Format of the configuration file:
 
@@ -42,7 +60,7 @@ Functions for reading the configuration files.
      RemoteForward 9999 shadows.cs.hut.fi:9999
      Cipher 3des
 
-   Host facist.blob.com
+   Host fascist.blob.com
      Port 23123
      User tylonen
      RhostsAuthentication no
@@ -88,15 +106,16 @@ typedef enum
   oForwardAgent, oForwardX11, oRhostsAuthentication,
   oPasswordAuthentication, oRSAAuthentication, oFallBackToRsh, oUseRsh,
   oIdentityFile, oHostName, oPort, oCipher, oRemoteForward, oLocalForward, 
-  oUser, oHost, oEscapeChar, oRhostsRSAAuthentication
+  oUser, oHost, oEscapeChar, oRhostsRSAAuthentication,
+  oGlobalKnownHostsFile, oUserKnownHostsFile
 } OpCodes;
 
 /* Textual representations of the tokens. */
 
-struct
+static struct
 {
   const char *name;
-  int opcode;
+  OpCodes opcode;
 } keywords[] =
 {
   { "ForwardAgent", oForwardAgent },
@@ -116,6 +135,8 @@ struct
   { "Host", oHost },
   { "EscapeChar", oEscapeChar },
   { "RhostsRSAAuthentication", oRhostsRSAAuthentication },
+  { "GlobalKnownHostsFile", oGlobalKnownHostsFile },
+  { "UserKnownHostsFile", oUserKnownHostsFile },
   { NULL, 0 }
 };
 
@@ -157,12 +178,14 @@ void add_remote_forward(Options *options, int port, const char *host,
 /* Returns the number of the token pointed to by cp of length len.
    Never returns if the token is not known. */
 
-static int parse_token(const char *cp, const char *filename, int linenum)
+static OpCodes parse_token(const char *cp, const char *filename, int linenum)
 {
-  int i;
+  unsigned int i;
+
   for (i = 0; keywords[i].name; i++)
     if (strcmp(cp, keywords[i].name) == 0)
       return keywords[i].opcode;
+
   fatal("%.200s line %d: Bad configuration option: %.100s", 
 	filename, linenum, cp);
   /*NOTREACHED*/
@@ -181,7 +204,7 @@ void process_config_line(Options *options, const char *host,
 
   /* Skip leading whitespace. */
   cp = line + strspn(line, WHITESPACE);
-  if (!*cp || *cp == '\n' || *cp == '#' || !*cp)
+  if (!*cp || *cp == '\n' || *cp == '#')
     return;
 
   /* Get the keyword. (Each line is supposed to begin with a keyword). */
@@ -262,6 +285,14 @@ void process_config_line(Options *options, const char *host,
 	*charptr = xstrdup(cp);
       break;
       
+    case oGlobalKnownHostsFile:
+      charptr = &options->system_hostfile;
+      goto parse_string;
+      
+    case oUserKnownHostsFile:
+      charptr = &options->user_hostfile;
+      goto parse_string;
+
     case oHostName:
       charptr = &options->hostname;
       goto parse_string;
@@ -427,6 +458,8 @@ void initialize_options(Options *options)
   options->hostname = NULL;
   options->user = NULL;
   options->escape_char = -1;
+  options->system_hostfile = NULL;
+  options->user_hostfile = NULL;
   options->num_local_forwards = 0;
   options->num_remote_forwards = 0;
 }
@@ -464,6 +497,10 @@ void fill_default_options(Options *options)
     }
   if (options->escape_char == -1)
     options->escape_char = '~';
+  if (options->system_hostfile == NULL)
+    options->system_hostfile = SSH_SYSTEM_HOSTFILE;
+  if (options->user_hostfile == NULL)
+    options->user_hostfile = SSH_USER_HOSTFILE;
   /* options->user will be set in the main program if appropriate */
   /* options->hostname will be set in the main program if appropriate */
 }

@@ -8,11 +8,23 @@ Copyright (c) 1995 Tatu Ylonen <ylo@cs.hut.fi>, Espoo, Finland
                    All rights reserved
 
 Created: Sun May  7 03:08:06 1995 ylo
-Last modified: Sun Jul  2 19:57:23 1995 ylo
 
-Rhosts or /etc/hosts.equiv authentication combined with RSA host authentication.
+Rhosts or /etc/hosts.equiv authentication combined with RSA host
+authentication.
 
 */
+
+/*
+ * $Id: auth-rh-rsa.c,v 1.4 1995/08/31 09:18:58 ylo Exp $
+ * $Log: auth-rh-rsa.c,v $
+ * Revision 1.4  1995/08/31  09:18:58  ylo
+ * 	Tilde-expand the name of user hostfile.
+ *
+ * Revision 1.3  1995/07/13  01:12:51  ylo
+ * 	Removed the "Last modified" header.
+ *
+ * $Endlog$
+ */
 
 #include "includes.h"
 #include "packet.h"
@@ -27,7 +39,7 @@ int auth_rhosts_rsa(RandomState *state,
 		    unsigned int client_host_key_bits,
 		    MP_INT *client_host_key_e, MP_INT *client_host_key_n)
 {
-  char buf[1024];
+  char *user_hostfile;
   const char *canonical_hostname;
 
   debug("Trying rhosts with RSA host authentication for %.100s", client_user);
@@ -42,13 +54,13 @@ int auth_rhosts_rsa(RandomState *state,
 	canonical_hostname);
   
   /* Format the name of the file containing per-user known hosts. */
-  sprintf(buf, "%s/%s", pw->pw_dir, SSH_USER_HOSTFILE);
+  user_hostfile = tilde_expand_filename(SSH_USER_HOSTFILE, pw->pw_uid);
 
   /* Check if we know the host and its host key. */
   if (check_host_in_hostfile(SSH_SYSTEM_HOSTFILE, canonical_hostname,
 			     client_host_key_bits, client_host_key_e,
 			     client_host_key_n) != HOST_OK &&
-      check_host_in_hostfile(buf, canonical_hostname,
+      check_host_in_hostfile(user_hostfile, canonical_hostname,
 			     client_host_key_bits, client_host_key_e,
 			     client_host_key_n) != HOST_OK)
     {

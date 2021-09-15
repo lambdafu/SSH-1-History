@@ -8,7 +8,6 @@ Copyright (c) 1995 Tatu Ylonen <ylo@cs.hut.fi>, Espoo, Finland
                    All rights reserved
 
 Created: Sat Mar 18 16:36:11 1995 ylo
-Last modified: Wed Jul 12 01:29:21 1995 ylo
 
 Ssh client program.  This program can be used to log into a remote machine.
 The software supports strong authentication, encryption, and forwarding
@@ -16,13 +15,45 @@ of X11, TCP/IP, and authentication connections.
 
 */
 
+/*
+ * $Id: ssh.c,v 1.9 1995/08/31 09:23:32 ylo Exp $
+ * $Log: ssh.c,v $
+ * Revision 1.9  1995/08/31  09:23:32  ylo
+ * 	Copy struct pw.
+ *
+ * Revision 1.8  1995/08/29  22:33:24  ylo
+ * 	Clear IEXTEN when going to raw mode.
+ *
+ * Revision 1.7  1995/08/21  23:28:32  ylo
+ * 	Added -q.
+ * 	Added dummy syslog facility argument to log_init.
+ *
+ * Revision 1.6  1995/08/18  22:56:33  ylo
+ * 	Clarified some error messages.
+ *
+ * Revision 1.5  1995/07/27  00:40:34  ylo
+ * 	Added GlobalKnownHostsFile and UserKnownHostsFile.
+ *
+ * Revision 1.4  1995/07/26  23:15:25  ylo
+ * 	Removed include version.h.
+ *
+ * Revision 1.3  1995/07/15  13:27:56  ylo
+ * 	Fixed a typo in usage().
+ * 	Moved -l in running rsh after the host.
+ *
+ * Revision 1.2  1995/07/13  01:40:03  ylo
+ * 	Removed "Last modified" header.
+ * 	Added cvs log.
+ *
+ * $Endlog$
+ */
+
 #include "includes.h"
 #include "xmalloc.h"
 #include "randoms.h"
 #include "ssh.h"
 #include "packet.h"
 #include "buffer.h"
-#include "version.h"
 #include "authfd.h"
 #include "readconf.h"
 
@@ -34,6 +65,9 @@ RandomState random_state;
 /* Flag indicating whether debug mode is on.  This can be set on the
    command line. */
 int debug_flag = 0;
+
+/* Flag indicating whether quiet mode is on. */
+int quiet_flag = 0;
 
 /* Flag indicating whether to allocate a pseudo tty.  This can be set on the
    command line, and is automatically set if no command is given on the command
@@ -106,6 +140,9 @@ void enter_raw_mode()
   tio.c_iflag |= IGNPAR;
   tio.c_iflag &= ~(ISTRIP|INLCR|IGNCR|ICRNL|IXON|IXANY|IXOFF);
   tio.c_lflag &= ~(ISIG|ICANON|ECHO|ECHOE|ECHOK|ECHONL);
+#ifdef IEXTEN
+  tio.c_lflag &= ~IEXTEN;
+#endif /* IEXTEN */
   tio.c_oflag &= ~OPOST;
   tio.c_cc[VMIN] = 1;
   tio.c_cc[VTIME] = 0;
@@ -150,7 +187,7 @@ void leave_raw_mode()
 void enter_non_blocking()
 {
   in_non_blocking_mode = 1;
-#ifdef O_NONBLOCK
+#if defined(O_NONBLOCK) && !defined(O_NONBLOCK_BROKEN)
   (void)fcntl(fileno(stdin), F_SETFL, O_NONBLOCK);
 #else /* O_NONBLOCK */
   (void)fcntl(fileno(stdin), F_SETFL, O_NDELAY);
@@ -218,9 +255,10 @@ void usage()
   fprintf(stderr, "  -n          Redirect input from /dev/null.\n");
   fprintf(stderr, "  -a          Disable authentication agent forwarding.\n");
   fprintf(stderr, "  -x          Disable X11 connection forwarding.\n");
-  fprintf(stderr, "  -i file     Identity for RSA authentication (default: ~/.ssh_identity).\n");
+  fprintf(stderr, "  -i file     Identity for RSA authentication (default: ~/.ssh/identity).\n");
   fprintf(stderr, "  -t          Tty; allocate a tty even if command is given.\n");
   fprintf(stderr, "  -v          Verbose; display verbose debugging messages.\n");
+  fprintf(stderr, "  -q          Quiet; don't display any warning messages.\n");
   fprintf(stderr, "  -f          Fork into background after authentication.\n");
   fprintf(stderr, "  -e char     Set escape character; ``none'' = disable (default: ~).\n");
   fprintf(stderr, "  -c cipher   Select encryption algorithm: ``idea'' (default, secure),\n");
@@ -248,12 +286,12 @@ void rsh_connect(char *host, char *user, Buffer *command)
   /* Build argument list for rsh. */
   i = 0;
   args[i++] = RSH_PATH;
+  args[i++] = host;    /* may have to come after user on some systems */
   if (user)
     {
       args[i++] = "-l";
       args[i++] = user;
     }
-  args[i++] = host;
   if (buffer_len(command) > 0)
     {
       buffer_append(command, "\0", 1);
@@ -277,7 +315,7 @@ int main(int ac, char **av)
   Buffer command;
   struct winsize ws;
   struct stat st;
-  struct passwd *pw;
+  struct passwd *pw, pwcopy;
   int interactive = 0, dummy;
   
   /* Save our own name. */
@@ -366,6 +404,10 @@ int main(int ac, char **av)
 #else /* RSAREF */
 	  fprintf(stderr, "International version.  Does not use RSAREF.\n");
 #endif /* RSAREF */
+	  break;
+
+	case 'q':
+	  quiet_flag = 1;
 	  break;
 
 	case 'e':
@@ -490,16 +532,31 @@ int main(int ac, char **av)
   if (!isatty(fileno(stdin)))
     {
       if (tty_flag)
-	log("Pseudo-terminal will not be allocated because stdin is not a terminal.");
+	fprintf(stderr, "Pseudo-terminal will not be allocated because stdin is not a terminal.\n");
       tty_flag = 0;
     }
 
-  /* Initialize "log" output.  Since we are the client all output actually
-     goes to the terminal. */
-  log_init(av[0], 1, debug_flag, 0);
-
   /* Get user data. */
   pw = getpwuid(getuid());
+  if (!pw)
+    {
+      fprintf(stderr, "You don't exist, go away!\n");
+      exit(1);
+    }
+  
+  /* Take a copy of the returned structure. */
+  memset(&pwcopy, 0, sizeof(pwcopy));
+  pwcopy.pw_name = xstrdup(pw->pw_name);
+  pwcopy.pw_passwd = xstrdup(pw->pw_passwd);
+  pwcopy.pw_uid = pw->pw_uid;
+  pwcopy.pw_gid = pw->pw_gid;
+  pwcopy.pw_dir = xstrdup(pw->pw_dir);
+  pwcopy.pw_shell = xstrdup(pw->pw_shell);
+  pw = &pwcopy;
+
+  /* Initialize "log" output.  Since we are the client all output actually
+     goes to the terminal. */
+  log_init(av[0], 1, debug_flag, quiet_flag, SYSLOG_FACILITY_USER);
 
   /* Read per-user configuration file. */
   sprintf(buf, "%s/%s", pw->pw_dir, SSH_USER_CONFFILE);
@@ -568,10 +625,12 @@ int main(int ac, char **av)
   if (sock == -1)
     {
       if (options.port != 0)
-	log("Connection to %.100s on port %d was refused.", 
-	    host, options.port);
+	log("Secure connection to %.100s on port %d refused%s.", 
+	    host, options.port,
+	    options.fallback_to_rsh ? "; reverting to insecure method" : "");
       else
-	log("Connection to %.100s was refused.", host);
+	log("Secure connection to %.100s refused%s.", host,
+	    options.fallback_to_rsh ? "; reverting to insecure method" : "");
 
       if (options.fallback_to_rsh)
 	{
@@ -587,6 +646,12 @@ int main(int ac, char **av)
     options.identity_files[i] = 
       tilde_expand_filename(options.identity_files[i], getuid());
 
+  /* Expand ~ in known host file names. */
+  options.system_hostfile = tilde_expand_filename(options.system_hostfile,
+						  getuid());
+  options.user_hostfile = tilde_expand_filename(options.user_hostfile,
+						getuid());
+
   /* Log into the remote system.  This never returns if the login fails. 
      Note: this initializes the random state, and leaves it initialized. */
   ssh_login(&random_state, host_private_key_loaded, &host_private_key, 
@@ -594,7 +659,8 @@ int main(int ac, char **av)
 	    options.identity_files,
 	    options.rhosts_authentication, options.rhosts_rsa_authentication,
 	    options.rsa_authentication,
-	    options.password_authentication, options.cipher);
+	    options.password_authentication, options.cipher,
+	    options.system_hostfile, options.user_hostfile);
 
   /* We no longer need the host private key.  Clear it now. */
   if (host_private_key_loaded)

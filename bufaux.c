@@ -8,12 +8,24 @@ Copyright (c) 1995 Tatu Ylonen <ylo@cs.hut.fi>, Espoo, Finland
                    All rights reserved
 
 Created: Wed Mar 29 02:24:47 1995 ylo
-Last modified: Wed Jun 28 22:37:58 1995 ylo
 
 Auxiliary functions for storing and retrieving various data types to/from
 Buffers.
 
 */
+
+/*
+ * $Id: bufaux.c,v 1.3 1995/08/29 22:19:52 ylo Exp $
+ * $Log: bufaux.c,v $
+ * Revision 1.3  1995/08/29  22:19:52  ylo
+ * 	Removed extra '&'.
+ *
+ * Revision 1.2  1995/07/13  01:17:49  ylo
+ * 	Removed "Last modified" header.
+ * 	Added cvs log.
+ *
+ * $Endlog$
+ */
 
 #include "includes.h"
 #include "ssh.h"
@@ -77,7 +89,7 @@ void buffer_get_mp_int(Buffer *buffer, MP_INT *value)
   unsigned char buf[2];
 
   /* Get the number for bits. */
-  buffer_get(buffer, (char *)&buf, 2);
+  buffer_get(buffer, (char *)buf, 2);
   bits = GET_16BIT(buf);
   /* Compute the number of binary bytes that follow. */
   bytes = (bits + 7) / 8;

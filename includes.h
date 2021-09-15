@@ -8,11 +8,41 @@ Copyright (c) 1995 Tatu Ylonen <ylo@cs.hut.fi>, Espoo, Finland
                    All rights reserved
 
 Created: Thu Mar 23 16:29:37 1995 ylo
-Last modified: Mon Jul 10 07:01:14 1995 ylo
 
 This file includes most of the needed system headers.
 
 */
+
+/*
+ * $Id: includes.h,v 1.7 1995/08/18 22:54:59 ylo Exp $
+ * $Log: includes.h,v $
+ * Revision 1.7  1995/08/18  22:54:59  ylo
+ * 	Added using netinet/in_system.h if netinet/in_systm.h does not
+ * 	exist (some old linux versions, at least).
+ *
+ * 	Added support for NextStep.
+ *
+ * Revision 1.6  1995/07/27  03:27:46  ylo
+ * 	Moved sparc HAVE_SYS_IOCTL_H stuff to the proper place.
+ *
+ * Revision 1.5  1995/07/26  23:35:32  ylo
+ * 	Undef HAVE_VHANGUP on Sony News.
+ *
+ * Revision 1.4  1995/07/26  23:15:05  ylo
+ * 	Include version.h.
+ * 	Fixed SIZEOF_LONG test.
+ * 	Added ultrix specific porting stuff.
+ * 	Added sparc/sunos specific porting stuff.
+ *
+ * Revision 1.3  1995/07/13  01:46:00  ylo
+ * 	Added snabb's patches for IRIX 4.
+ *
+ * Revision 1.2  1995/07/13  01:25:11  ylo
+ * 	Removed "Last modified" header.
+ * 	Added cvs log.
+ *
+ * $Endlog$
+ */
 
 #ifndef INCLUDES_H
 #define INCLUDES_H
@@ -20,9 +50,11 @@ This file includes most of the needed system headers.
 /* Note: autoconf documentation tells to use the <...> syntax and have -I. */
 #include <config.h>
 
+#include "version.h"
+
 typedef unsigned short word16;
 
-#if SIZEOF_LONG == 64
+#if SIZEOF_LONG == 8
 typedef unsigned int word32;
 #else
 typedef unsigned long word32;
@@ -52,6 +84,10 @@ typedef unsigned long word32;
 #include <fcntl.h>
 #include <assert.h>
 #include <signal.h>
+
+#ifdef sparc
+#undef HAVE_SYS_IOCTL_H
+#endif
 
 #ifdef HAVE_SYS_IOCTL_H
 #include <sys/ioctl.h>
@@ -94,7 +130,11 @@ char *strchr(), *strrchr();
 
 #include <sys/socket.h>
 #include <netinet/in.h>
+#ifdef HAVE_NETINET_IN_SYSTM_H
 #include <netinet/in_systm.h>
+#else /* Some old linux systems at least have in_system.h instead. */
+#include <netinet/in_system.h>
+#endif /* HAVE_NETINET_IN_SYSTM_H */
 #include <sys/un.h>
 #include <netinet/ip.h>
 #include <netinet/tcp.h>
@@ -190,11 +230,31 @@ char *strchr(), *strrchr();
 #define S_ISGID 0x400
 #endif /* S_ISGID */
 
+#ifndef S_ISDIR
+/* NextStep apparently fails to define this. */
+#define S_ISDIR(mode)   (((mode)&(_S_IFMT))==(_S_IFDIR))
+#endif
+
 #ifdef STAT_MACROS_BROKEN
 /* Some systems have broken S_ISDIR etc. macros in sys/stat.h.  Please ask
    your vendor to fix them.  You can then remove the line below, but only
    after you have sent a complaint to your vendor. */
 WARNING_MACROS_IN_SYS_STAT_H_ARE_BROKEN_ON_YOUR_SYSTEM_READ_INCLUDES_H
 #endif /* STAT_MACROS_BROKEN */
+
+#if defined(__sgi) && defined(__SVR3)
+/* IRIX 4 cc wants to have getpass() prototype but include files
+   do not define it. */
+char *getpass(const char *);
+#endif
+
+#ifdef ultrix
+#undef O_NONBLOCK
+#undef HAVE_SETSID
+#endif
+
+#ifdef sony_news
+#undef HAVE_VHANGUP
+#endif
 
 #endif /* INCLUDES_H */
