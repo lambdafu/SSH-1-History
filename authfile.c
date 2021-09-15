@@ -8,12 +8,26 @@ Copyright (c) 1995 Tatu Ylonen <ylo@cs.hut.fi>, Espoo, Finland
                    All rights reserved
 
 Created: Mon Mar 27 03:52:05 1995 ylo
-Last modified: Tue Jul 11 14:07:29 1995 ylo
 
 This file contains functions for reading and writing identity files, and
 for reading the passphrase from the user.
 
 */
+
+/*
+ * $Id: authfile.c,v 1.4 1995/08/21 23:21:56 ylo Exp $
+ * $Log: authfile.c,v $
+ * Revision 1.4  1995/08/21  23:21:56  ylo
+ * 	Don't complain about bad passphrase if passphrase was empty.
+ *
+ * Revision 1.3  1995/07/13  01:16:38  ylo
+ * 	Removed "Last modified" header.
+ *
+ * Revision 1.2  1995/07/13  01:11:52  ylo
+ * 	Added cvs log.
+ *
+ * $Endlog$
+ */
 
 #include "includes.h"
 #include <gmp.h>
@@ -279,7 +293,8 @@ int load_private_key(const char *filename, const char *passphrase,
   if (check1 != buffer_get_char(&decrypted) ||
       check2 != buffer_get_char(&decrypted))
     {
-      debug("Bad passphrase supplied for key file %.200s.", filename);
+      if (strcmp(passphrase, "") != 0)
+	debug("Bad passphrase supplied for key file %.200s.", filename);
       /* Bad passphrase. */
       buffer_free(&decrypted);
     fail:

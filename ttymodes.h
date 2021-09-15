@@ -3,14 +3,28 @@
 ttymodes.h
 
 Author: Tatu Ylonen <ylo@cs.hut.fi>
+	SGTTY stuff contributed by Janne Snabb <snabb@niksula.hut.fi>
 
 Copyright (c) 1995 Tatu Ylonen <ylo@cs.hut.fi>, Espoo, Finland
                    All rights reserved
 
 Created: Tue Mar 21 15:42:09 1995 ylo
-Last modified: Sun May  7 21:09:36 1995 ylo
 
 */
+
+/*
+ * $Id: ttymodes.h,v 1.3 1995/08/18 22:59:00 ylo Exp $
+ * $Log: ttymodes.h,v $
+ * Revision 1.3  1995/08/18  22:59:00  ylo
+ * 	Added acknowledgement about Janne Snabb contributing the sgtty
+ * 	code.
+ *
+ * Revision 1.2  1995/07/13  01:41:22  ylo
+ * 	Removed "Last modified" header.
+ * 	Added cvs log.
+ *
+ * $Endlog$
+ */
 
 /* The tty mode description is a stream of bytes.  The stream consists of
    opcode-arguments pairs.  It is terminated by opcode TTY_OP_END (0).

@@ -8,7 +8,6 @@ Copyright (c) 1995 Tatu Ylonen <ylo@cs.hut.fi>, Espoo, Finland
                    All rights reserved
 
 Created: Fri Mar 17 17:09:28 1995 ylo
-Last modified: Tue Jul 11 00:59:13 1995 ylo
 
 This program is the ssh daemon.  It listens for connections from clients, and
 performs authentication, executes use commands or shell, and forwards
@@ -18,16 +17,110 @@ agent connections.
 
 */
 
+/*
+ * $Id: sshd.c,v 1.18 1995/09/06 19:53:19 ylo Exp $
+ * $Log: sshd.c,v $
+ * Revision 1.18  1995/09/06  19:53:19  ylo
+ * 	Fixed spelling of fascist.
+ *
+ * Revision 1.17  1995/09/06  16:02:40  ylo
+ * 	Added /usr/bin/X11 to default DEFAULT_PATH.
+ * 	Fixed inetd_flag & debug_flag together.
+ * 	Fixed -i.
+ *
+ * Revision 1.16  1995/08/31  09:43:14  ylo
+ * 	Fixed LOGNAME.
+ *
+ * Revision 1.15  1995/08/31  09:26:22  ylo
+ * 	Copy struct pw.
+ * 	Use socketpairs for communicating with the shell/command.
+ * 	Use same socket for stdin and stdout. (may help rdist)
+ * 	Put LOGNAME in environment.
+ * 	Run xauth directly, without the shell in between.
+ * 	Fixed the HPSUX kludge.
+ *
+ * Revision 1.14  1995/08/29  22:36:12  ylo
+ * 	Added SIGHUP handling.  Added SIGTERM and SIGQUIT handling.
+ * 	Permit root login if forced command.
+ * 	Added DenyHosts, AllowHosts.  Added PrintMotd.
+ * 	New file descriptor code.
+ * 	Use HPSUX and SIGCHLD kludges only on HPUX.
+ *
+ * Revision 1.13  1995/08/22  14:06:11  ylo
+ * 	Added /usr/local/bin in default DEFAULT_PATH.
+ *
+ * Revision 1.12  1995/08/21  23:33:48  ylo
+ * 	Added "-f conffile" option.
+ * 	Added support for the server configuration file.
+ * 	Added allow/deny host code.
+ * 	Added code to optionally deny root logins.
+ * 	Added code to configure allowed authentication methods.
+ * 	Changes to log initialization arguments.
+ * 	Eliminated NO_RHOSTS_AUTHENTICATION.
+ *
+ * Revision 1.11  1995/08/18  22:58:06  ylo
+ * 	Added support for O_NONBLOCK_BROKEN.
+ * 	Added support for TTY_GROUP.
+ *
+ * Revision 1.10  1995/07/27  02:19:09  ylo
+ * 	Tell packet_set_encryption_key that we are the server.
+ *
+ * 	Temporary kludge to make TCP/IP port forwarding work
+ * 	properly.  This kludge will increase idle CPU usage because
+ * 	sshd wakes up every 300ms.
+ *
+ * Revision 1.9  1995/07/27  00:41:34  ylo
+ * 	If DEFAULT_PATH defined by configure, use that value.
+ *
+ * Revision 1.8  1995/07/26  23:21:06  ylo
+ * 	Removed include version.h.  Added include mpaux.h.
+ *
+ * 	Print software version with -d.
+ *
+ * 	Added support for protocol version 1.1.  Fixes minor security
+ * 	problems, and updates the protocol to match the draft RFC.
+ * 	Compatibility code makes it possible to use old clients with
+ * 	this server.
+ *
+ * Revision 1.7  1995/07/16  01:01:41  ylo
+ * 	Removed hostname argument from record_logout.
+ * 	Added call to pty_release.
+ * 	Set tty mode depending on whether we have tty group.
+ *
+ * Revision 1.6  1995/07/15  22:27:04  ylo
+ * 	Added printing of /etc/motd.
+ *
+ * Revision 1.5  1995/07/15  21:41:04  ylo
+ * 	Changed the HPSUX kludge (child_has_terminated).  It caused
+ * 	sshd to busy-loop if the program exited but there were open
+ * 	connections.
+ *
+ * Revision 1.4  1995/07/14  23:37:43  ylo
+ * 	Limit outgoing packet size to 512 bytes for interactive
+ * 	connections.
+ *
+ * Revision 1.3  1995/07/13  17:33:17  ylo
+ * 	Only record the pid in /etc/sshd_pid if running without the
+ * 	debugging flag.
+ *
+ * Revision 1.2  1995/07/13  01:40:47  ylo
+ * 	Removed "Last modified" header.
+ * 	Added cvs log.
+ *
+ * $Endlog$
+ */
+
 #include "includes.h"
 #include <gmp.h>
 #include "xmalloc.h"
 #include "rsa.h"
 #include "ssh.h"
-#include "version.h"
 #include "pty.h"
 #include "packet.h"
 #include "buffer.h"
 #include "cipher.h"
+#include "mpaux.h"
+#include "servconf.h"
 #ifdef HAVE_USERSEC_H
 #include <usersec.h>
 #endif /* HAVE_USERSEC_H */
@@ -38,15 +131,23 @@ agent connections.
 #define DEFAULT_SHELL		"/bin/sh"
 #endif
 
+#ifndef DEFAULT_PATH
 #ifdef _PATH_USERPATH
 #define DEFAULT_PATH		_PATH_USERPATH
 #else
-#define DEFAULT_PATH		"/bin:/usr/bin:/usr/ucb"
+#define DEFAULT_PATH	"/bin:/usr/bin:/usr/ucb:/usr/bin/X11:/usr/local/bin"
 #endif
+#endif /* DEFAULT_PATH */
 
 #ifndef O_NOCTTY
 #define O_NOCTTY	0
 #endif
+
+/* Server configuration options. */
+ServerOptions options;
+
+/* Name of the server configuration file. */
+char *config_file_name = SERVER_CONFIG_FILE;
 
 /* Debug mode flag.  This can be set on the command line.  If debug
    mode is enabled, extra debugging output will be sent to the system
@@ -54,35 +155,21 @@ agent connections.
    the first connection. */
 int debug_flag = 0;
 
-/* Quiet mode flag.  This can be set on the command line.  If this flag
-   is given, nothing will be logged in the system log. */
-int quiet_flag = 0;
-
 /* Flag indicating that the daemon is being started from inetd. */
 int inetd_flag = 0;
 
-/* Number of bits in the server key.  This value can be set on the command
-   line. */
-int bits = 768;
-
-/* Port to listen to.  This value can be set on the command line. */
-int port = SSH_DEFAULT_PORT;
-
-/* Session key is regenerated every this many seconds if it has been used.
-   This value can be set on the command line. */
-int key_generation_interval = 3600;
-
-/* Grace period for logging in.  The server will disconnect and exit if the
-   user hasn\'t authenticated him/herself within this many seconds. */
-int grace_period = 300;
-
-/* Name of the file containing the host key.  The default value is currently
-   defined in Makefile.in and passed to the compiler on the command line.
-   The value can be set on the command line. */
-char *host_key_file = HOST_KEY_FILE;
+/* This flag is set to true if the remote protocol version is 1.1 or higher. */
+int remote_protocol_1_1 = 0;
 
 /* Saved value of argv[0]. */
 char *av0;
+
+/* Saved arguments to main(). */
+char **saved_argv;
+
+/* This is set to the socket that the server is listening; this is used in
+   the SIGHUP signal handler. */
+int listen_sock;
 
 /* Flags set in auth-rsa from authorized_keys flags.  These are set in
   auth-rsa.c. */
@@ -90,7 +177,10 @@ int no_port_forwarding_flag = 0;
 int no_agent_forwarding_flag = 0;
 int no_x11_forwarding_flag = 0;
 int no_pty_flag = 0;
-char *forced_command = NULL;
+char *forced_command = NULL;  /* RSA authentication "command=" option. */
+
+/* Session id for the current session. */
+unsigned char session_id[16];
 
 /* Any really sensitive data in the application is contained in this structure.
    The idea is that this structure could be locked into memory so that the
@@ -135,6 +225,29 @@ void do_child(const char *command, struct passwd *pw, const char *term,
 void do_session(int pid, int fdin, int fdout, int fderr);
 
 
+/* Signal handler for SIGHUP.  Sshd execs itself when it receives SIGHUP;
+   the effect is to reread the configuration file (and to regenerate
+   the server key). */
+
+RETSIGTYPE sighup_handler(int sig)
+{
+  log("Received SIGHUP; restarting.");
+  close(listen_sock);
+  execv(av0, saved_argv);
+  log("RESTART FAILED: av0='%s', error: %s.", av0, strerror(errno));
+}
+
+/* Generic signal handler for terminating signals in the master daemon. 
+   These close the listen socket; not closing it seems to cause "Address
+   already in use" problems on some machines, which is inconvenient. */
+
+RETSIGTYPE sigterm_handler(int sig)
+{
+  log("Received signal %d; terminating.", sig);
+  close(listen_sock);
+  exit(255);
+}
+
 /* Signal handler for the alarm after the login grace period has expired. */
 
 RETSIGTYPE grace_alarm_handler(int sig)
@@ -157,10 +270,10 @@ RETSIGTYPE key_regeneration_alarm(int sig)
   if (key_used)
     {
       /* This should really be done in the background. */
-      log("Generating new %d bit RSA key.", bits);
+      log("Generating new %d bit RSA key.", options.server_key_bits);
       random_acquire_environmental_noise(&sensitive_data.random_state);
       rsa_generate_key(&sensitive_data.private_key, &public_key, 
-		       &sensitive_data.random_state, bits);
+		       &sensitive_data.random_state, options.server_key_bits);
       random_stir(&sensitive_data.random_state);
       random_save(&sensitive_data.random_state, SSH_DAEMON_SEED_FILE);
       key_used = 0;
@@ -169,7 +282,7 @@ RETSIGTYPE key_regeneration_alarm(int sig)
 
   /* Reschedule the alarm. */
   signal(SIGALRM, key_regeneration_alarm);
-  alarm(key_generation_interval);
+  alarm(options.key_regeneration_time);
 }
 
 /* Main program for the daemon. */
@@ -180,7 +293,6 @@ int main(int ac, char **av)
   extern int optind;
   int opt, aux, sock, newsock, i, client_port, wait_status, pid, on = 1;
   int remote_major, remote_minor;
-  struct servent *sp;
   struct sockaddr_in sin;
   char buf[100]; /* Must not be larger than remote_version. */
   char remote_version[100]; /* Must be at least as big as buf. */
@@ -192,19 +304,19 @@ int main(int ac, char **av)
   
   /* Save argv[0]. */
   av0 = av[0];
+  saved_argv = av;
 
-  /* Get service name to be used as default port.  Otherwise, the built-in
-     default port will be used. */
-  sp = getservbyname(SSH_SERVICE_NAME, "tcp");
-  if (sp)
-    port = ntohs(sp->s_port);
-  endservent();
+  /* Initialize configuration options to their default values. */
+  initialize_server_options(&options);
 
   /* Parse command-line arguments. */
-  while ((opt = getopt(ac, av, "p:b:k:h:g:diq")) != EOF)
+  while ((opt = getopt(ac, av, "f:p:b:k:h:g:diq")) != EOF)
     {
       switch (opt)
 	{
+	case 'f':
+	  config_file_name = optarg;
+	  break;
 	case 'd':
 	  debug_flag = 1;
 	  break;
@@ -212,42 +324,29 @@ int main(int ac, char **av)
 	  inetd_flag = 1;
 	  break;
 	case 'q':
-	  quiet_flag = 1;
+	  options.quiet_mode = 1;
 	  break;
 	case 'b':
-	  bits = atoi(optarg);
-	  if (bits < 512 || bits > 32768)
-	    {
-	      fprintf(stderr, "Bad public key size %s.\n", optarg);
-	      exit(1);
-	    }
+	  options.server_key_bits = atoi(optarg);
 	  break;
 	case 'p':
-	  port = atoi(optarg);
-	  if (port < 1 || port > 65535)
-	    {
-	      fprintf(stderr, "Bad port %s.\n", optarg);
-	      exit(1);
-	    }
+	  options.port = atoi(optarg);
 	  break;
 	case 'g':
-	  grace_period = atoi(optarg);
-	  if (grace_period != 0 && grace_period < 10)
-	    {
-	      fprintf(stderr, "Bad authentication grace period %s.\n", optarg);
-	      exit(1);
-	    }
+	  options.login_grace_time = atoi(optarg);
 	  break;
 	case 'k':
-	  key_generation_interval = atoi(optarg);
+	  options.key_regeneration_time = atoi(optarg);
 	  break;
 	case 'h':
-	  host_key_file = optarg;
+	  options.host_key_file = optarg;
 	  break;
 	case '?':
 	default:
+	  fprintf(stderr, "sshd version %s\n", SSH_VERSION);
 	  fprintf(stderr, "Usage: %s [options]\n", av0);
 	  fprintf(stderr, "Options:\n");
+	  fprintf(stderr, "  -f file    Configuration file (default /etc/sshd_config)\n");
 	  fprintf(stderr, "  -d         Debugging mode\n");
 	  fprintf(stderr, "  -i         Started from inetd\n");
 	  fprintf(stderr, "  -q         Quiet (no logging)\n");
@@ -260,6 +359,26 @@ int main(int ac, char **av)
 	  exit(1);
 	}
     }
+
+  /* Read server configuration options from the configuration file. */
+  read_server_config(&options, config_file_name);
+
+  /* Fill in default values for those options not explicitly set. */
+  fill_default_server_options(&options);
+
+  /* Check certain values for sanity. */
+  if (options.server_key_bits < 512 || 
+      options.server_key_bits > 32768)
+    {
+      fprintf(stderr, "Bad server key size.\n");
+      exit(1);
+    }
+  if (options.port < 1 || options.port > 65535)
+    {
+      fprintf(stderr, "Bad port number.\n");
+      exit(1);
+    }
+
   /* Check that there are no remaining arguments. */
   if (optind < ac)
     {
@@ -268,20 +387,25 @@ int main(int ac, char **av)
     }
 
   /* Initialize the log (it is reinitialized below in case we forked). */
-  log_init(av0, debug_flag, debug_flag, quiet_flag);
+  log_init(av0, debug_flag && !inetd_flag, 
+	   debug_flag || options.fascist_logging, 
+	   options.quiet_mode, options.log_facility);
+
+  debug("sshd version %s", SSH_VERSION);
 
   /* Load the host key.  It must have empty passphrase. */
-  if (!load_private_key(host_key_file, "", &sensitive_data.host_key, &comment))
+  if (!load_private_key(options.host_key_file, "", 
+			&sensitive_data.host_key, &comment))
     {
       if (debug_flag)
 	fprintf(stderr, "Could not load host key: %s: %s\n",
-		host_key_file, strerror(errno));
+		options.host_key_file, strerror(errno));
       else
 	{
 	  int err = errno;
-	  log_init(av0, 1, 1, 0);
+	  log_init(av0, !inetd_flag, 1, 0, options.log_facility);
 	  error("Could not load host key: %.200s: %s", 
-		host_key_file, strerror(err));
+		options.host_key_file, strerror(err));
 	}
       exit(1);
     }
@@ -319,17 +443,22 @@ int main(int ac, char **av)
     }
 
   /* Reinitialize the log (because of the fork above). */
-  log_init(av0, debug_flag, debug_flag, quiet_flag);
+  log_init(av0, debug_flag && !inetd_flag, 
+	   debug_flag || options.fascist_logging, 
+	   options.quiet_mode, options.log_facility);
 
   /* Check that server and host key lengths differ sufficiently.  This is
      necessary to make double encryption work with rsaref.  Oh, I hate
      software patents. */
-  if (bits > sensitive_data.host_key.bits - SSH_KEY_BITS_RESERVED &&
-      bits < sensitive_data.host_key.bits + SSH_KEY_BITS_RESERVED)
+  if (options.server_key_bits > 
+      sensitive_data.host_key.bits - SSH_KEY_BITS_RESERVED &&
+      options.server_key_bits < 
+      sensitive_data.host_key.bits + SSH_KEY_BITS_RESERVED)
     {
-      bits = sensitive_data.host_key.bits + SSH_KEY_BITS_RESERVED;
+      options.server_key_bits = 
+	sensitive_data.host_key.bits + SSH_KEY_BITS_RESERVED;
       debug("Forcing server key to %d bits to make it differ from host key.", 
-	    bits);
+	    options.server_key_bits);
     }
 
   /* Initialize memory allocation so that any freed MP_INT data will be
@@ -344,17 +473,28 @@ int main(int ac, char **av)
   random_initialize(&sensitive_data.random_state, SSH_DAEMON_SEED_FILE);
 
   /* Generate an rsa key. */
-  log("Generating %d bit RSA key.", bits);
+  log("Generating %d bit RSA key.", options.server_key_bits);
   rsa_generate_key(&sensitive_data.private_key, &public_key,
 		   &sensitive_data.random_state,
-		   bits);
+		   options.server_key_bits);
   random_stir(&sensitive_data.random_state);
   random_save(&sensitive_data.random_state, SSH_DAEMON_SEED_FILE);
   debug("RSA key generation complete.");
   
   /* Start listening for a socket, unless started from inetd. */
   if (inetd_flag)
-    sock = 0; /* stdin */
+    {
+      int s1, s2;
+      s1 = dup(0); /* stdin */
+      s2 = dup(s1);
+      sock = dup(s2);
+      if (sock <= 2)
+	fatal("could not dup sock high enough");
+      /* We intentionally do not close the descriptors 0, 1, and 2 as our
+	 code for setting the descriptors won\'t work if ttyfd happens to
+	 be one of those. */
+      debug("inetd socket after dupping: %d", sock);
+    }
   else
     {
       /* Create socket for listening. */
@@ -373,33 +513,48 @@ int main(int ac, char **av)
 #endif /* SO_LINGER */
 
       /* Initialize the socket address. */
+      memset(&sin, 0, sizeof(sin));
       sin.sin_family = AF_INET;
-      sin.sin_addr.s_addr = INADDR_ANY;
-      sin.sin_port = htons(port);
+      sin.sin_addr = options.listen_addr;
+      sin.sin_port = htons(options.port);
 
       /* Bind the socket to the desired port. */
       if (bind(sock, (struct sockaddr *)&sin, sizeof(sin)) < 0)
-	fatal("bind: %s", strerror(errno));
-
-      /* Record our pid in /etc/sshd_pid to make it easier to kill the
-	 correct sshd.  We don\'t want to do this before the bind above
-	 because the bind will fail if there already is a daemon, and this
-	 will overwrite any old pid in the file. */
-      f = fopen(SSH_DAEMON_PID_FILE, "w");
-      if (f)
 	{
-	  fprintf(f, "%u\n", (unsigned int)getpid());
-	  fclose(f);
+	  error("bind: %s", strerror(errno));
+	  shutdown(sock, 2);
+	  close(sock);
+	  fatal("Bind to port %d failed.", options.port);
+	}
+
+      if (!debug_flag)
+	{
+	  /* Record our pid in /etc/sshd_pid to make it easier to kill the
+	     correct sshd.  We don\'t want to do this before the bind above
+	     because the bind will fail if there already is a daemon, and this
+	     will overwrite any old pid in the file. */
+	  f = fopen(SSH_DAEMON_PID_FILE, "w");
+	  if (f)
+	    {
+	      fprintf(f, "%u\n", (unsigned int)getpid());
+	      fclose(f);
+	    }
 	}
 
       /* Start listening on the port. */
-      log("Server listening on port %d.", port);
+      log("Server listening on port %d.", options.port);
       if (listen(sock, 5) < 0)
 	fatal("listen: %s", strerror(errno));
 
       /* Schedule server key regeneration alarm. */
       signal(SIGALRM, key_regeneration_alarm);
-      alarm(key_generation_interval);
+      alarm(options.key_regeneration_time);
+
+      /* Arrange to restart on SIGHUP.  The handler needs listen_sock. */
+      listen_sock = sock;
+      signal(SIGHUP, sighup_handler);
+      signal(SIGTERM, sigterm_handler);
+      signal(SIGQUIT, sigterm_handler);
       
       /* Stay listening for connections until the system crashes or the
 	 daemon is killed with a signal. */
@@ -443,7 +598,9 @@ int main(int ac, char **av)
 		     the connection. */
 		  close(sock);
 		  sock = newsock;
-		  log_init(av0, debug_flag, debug_flag, quiet_flag);
+		  log_init(av0, debug_flag && !inetd_flag, 
+			   options.fascist_logging || debug_flag, 
+			   options.quiet_mode, options.log_facility);
 		  break;
 		}
 	    }
@@ -483,9 +640,13 @@ int main(int ac, char **av)
   /* This is the child processing a new connection. */
 
   /* Disable the key regeneration alarm.  We will not regenerate the key
-     since we are no longer in a position to give it to anyone. */
+     since we are no longer in a position to give it to anyone.  We will
+     not restart on SIGHUP since it no longer makes sense. */
   alarm(0);
   signal(SIGALRM, SIG_DFL);
+  signal(SIGHUP, SIG_DFL);
+  signal(SIGTERM, SIG_DFL);
+  signal(SIGQUIT, SIG_DFL);
 
   /* Set socket options for the connection.  We want the socket to close
      as fast as possible without waiting for anything. */
@@ -512,6 +673,24 @@ int main(int ac, char **av)
      have a key. */
   packet_set_connection(sock, &sensitive_data.random_state);
 
+  /* Check whether logins are denied from this host. */
+  if (options.num_deny_hosts > 0)
+    {
+      const char *hostname = get_canonical_hostname();
+      const char *ipaddr = get_remote_ipaddr();
+      int i;
+      for (i = 0; i < options.num_deny_hosts; i++)
+	if (match_pattern(hostname, options.deny_hosts[i]) ||
+	    match_pattern(ipaddr, options.deny_hosts[i]))
+	  {
+	    log("Connection from %.200s denied.\n", hostname);
+	    hostname = "You are not allowed to connect.  Go away!\r\n";
+	    write(sock, hostname, strlen(hostname));
+	    close(sock);
+	    exit(0);
+	  }
+    }
+
   /* We don\'t want to listen forever unless the other side successfully
      authenticates itself.  So we set up an alarm which is cleared after
      successful authentication.  A limit of zero indicates no limit.
@@ -519,7 +698,7 @@ int main(int ac, char **av)
      to have the server exit just when you are about to discover the bug. */
   signal(SIGALRM, grace_alarm_handler);
   if (!debug_flag)
-    alarm(grace_period);
+    alarm(options.login_grace_time);
 
   /* Send our protocol version identification. */
   sprintf(buf, "SSH-%d.%d-%s\n", PROTOCOL_MAJOR, PROTOCOL_MINOR, SSH_VERSION);
@@ -566,11 +745,36 @@ int main(int ac, char **av)
       fatal("Protocol major versions differ: %d vs. %d", 
 	    PROTOCOL_MAJOR, remote_major);
     }
-  /* Minor version is not currently used for anything but could be
-     used to enable certain features in future. */
+  /* Detect whether we are at least protocol version 1.1. */
+  remote_protocol_1_1 = (remote_major >= 1 && remote_minor >= 1);
+  if (!remote_protocol_1_1)
+    {
+      packet_send_debug("Warning: You are using an old version of the client.");
+      packet_send_debug("The old version is vulnerable to certain attacks (such as playback).");
+      packet_send_debug("Upgrading to the latest version is recommended.");
+    }
+
+
+  /* Check whether logins are permitted from this host. */
+  if (options.num_allow_hosts > 0)
+    {
+      const char *hostname = get_canonical_hostname();
+      const char *ipaddr = get_remote_ipaddr();
+      int i;
+      for (i = 0; i < options.num_allow_hosts; i++)
+	if (match_pattern(hostname, options.allow_hosts[i]) ||
+	    match_pattern(ipaddr, options.allow_hosts[i]))
+	  break;
+      if (i >= options.num_allow_hosts)
+	{
+	  log("Connection from %.200s not allowed.\n", hostname);
+	  packet_disconnect("Sorry, you are not allowed to connect.");
+	  /*NOTREACHED*/
+	}
+    }
 
   /* Set the socket into non-blocking mode. */
-#ifdef O_NONBLOCK
+#if defined(O_NONBLOCK) && !defined(O_NONBLOCK_BROKEN)
   if (fcntl(sock, F_SETFL, O_NONBLOCK) < 0)
     log("fcntl O_NONBLOCK: %s", strerror(errno));
 #else /* O_NONBLOCK */  
@@ -595,7 +799,7 @@ int main(int ac, char **av)
 void do_connection(int sock, int privileged_port)
 {
   int i;
-  MP_INT session_key_int, aux;
+  MP_INT session_key_int;
   unsigned char session_key[SSH_SESSION_KEY_LENGTH];
   unsigned char check_bytes[8];
   char *user;
@@ -634,11 +838,15 @@ void do_connection(int sock, int privileged_port)
   packet_put_int(cipher_mask());
 
   /* Declare supported authentication types. */
-  auth_mask = (1 << SSH_AUTH_RSA) | (1 << SSH_AUTH_PASSWORD) |
-    (1 << SSH_AUTH_RHOSTS_RSA);
-#ifndef NO_RHOSTS_AUTHENTICATION
-  auth_mask |= 1 << SSH_AUTH_RHOSTS;
-#endif /* NO_RHOSTS_AUTHENTICATION */
+  auth_mask = 0;
+  if (options.rhosts_authentication)
+    auth_mask |= 1 << SSH_AUTH_RHOSTS;
+  if (options.rhosts_rsa_authentication)
+    auth_mask |= 1 << SSH_AUTH_RHOSTS_RSA;
+  if (options.rsa_authentication)
+    auth_mask |= 1 << SSH_AUTH_RSA;
+  if (options.password_authentication)
+    auth_mask |= 1 << SSH_AUTH_PASSWORD;
   packet_put_int(auth_mask);
 
   /* Send the packet and wait for it to be sent. */
@@ -692,24 +900,49 @@ void do_connection(int sock, int privileged_port)
       rsa_private_decrypt(&session_key_int, &session_key_int,
 			  &sensitive_data.private_key);
     }
-  
-  /* Extract session key from the decrypted integer.  We take the 256
-     least significant bits of the integer, lsb first. */
-  mpz_init(&aux);
-  for (i = 0; i < sizeof(session_key); i++)
+
+  /* Compute session id for this session. */
+  compute_session_id(session_id, check_bytes, sensitive_data.host_key.bits,
+		     &sensitive_data.host_key.n, 
+		     sensitive_data.private_key.bits,
+		     &sensitive_data.private_key.n);
+
+  if (remote_protocol_1_1)
     {
-      mpz_mod_2exp(&aux, &session_key_int, 8);
-      mpz_div_2exp(&session_key_int, &session_key_int, 8);
-      session_key[i] = mpz_get_ui(&aux);
+      /* Extract session key from the decrypted integer.  The key is in the 
+	 least significant 256 bits of the integer; the first byte of the 
+	 key is in the highest bits. */
+      mp_linearize_msb_first(session_key, sizeof(session_key), 
+			     &session_key_int);
+
+      /* Xor the first 16 bytes of the session key with the session id. */
+      for (i = 0; i < 16; i++)
+	session_key[i] ^= session_id[i];
     }
-  mpz_clear(&aux);
+  else
+    { /* XXX remove this compatibility code later. */
+      /* In the old version, the key was taken lsb first, and there was no
+	 xor. */
+      MP_INT aux;
+      /* Extract session key from the decrypted integer.  We take the 256
+	 least significant bits of the integer, lsb first. */
+      mpz_init(&aux);
+      for (i = 0; i < sizeof(session_key); i++)
+	{
+	  mpz_mod_2exp(&aux, &session_key_int, 8);
+	  mpz_div_2exp(&session_key_int, &session_key_int, 8);
+	  session_key[i] = mpz_get_ui(&aux);
+	}
+      mpz_clear(&aux);
+    }
 
   /* Destroy the decrypted integer.  It is no longer needed. */
   mpz_clear(&session_key_int);
   
   /* Set the session key.  From this on all communications will be
      encrypted. */
-  packet_set_encryption_key(session_key, SSH_SESSION_KEY_LENGTH, cipher_type);
+  packet_set_encryption_key(session_key, SSH_SESSION_KEY_LENGTH, 
+			    cipher_type, 0);
   
   /* Destroy our copy of the session key.  It is no longer needed. */
   memset(session_key, 0, sizeof(session_key));
@@ -747,7 +980,7 @@ void do_authentication(char *user, int privileged_port)
   int type;
   int authenticated = 0;
   char *password;
-  struct passwd *pw;
+  struct passwd *pw, pwcopy;
   char *client_user;
   unsigned int client_host_key_bits;
   MP_INT client_host_key_e, client_host_key_n;
@@ -774,7 +1007,19 @@ void do_authentication(char *user, int privileged_port)
 	  packet_send();
 	  packet_write_wait();
 	}
+      /*NOTREACHED*/
+      abort();
     }
+  
+  /* Take a copy of the returned structure. */
+  memset(&pwcopy, 0, sizeof(pwcopy));
+  pwcopy.pw_name = xstrdup(pw->pw_name);
+  pwcopy.pw_passwd = xstrdup(pw->pw_passwd);
+  pwcopy.pw_uid = pw->pw_uid;
+  pwcopy.pw_gid = pw->pw_gid;
+  pwcopy.pw_dir = xstrdup(pw->pw_dir);
+  pwcopy.pw_shell = xstrdup(pw->pw_shell);
+  pw = &pwcopy;
 
   /* If we are not running as root, the user must have the same uid as the
      server. */
@@ -810,10 +1055,12 @@ void do_authentication(char *user, int privileged_port)
 	{
 
 	case SSH_CMSG_AUTH_RHOSTS:
-#ifdef NO_RHOSTS_AUTHENTICATION
-	  debug("Rhosts authentication disabled.");
-	  break;
-#else /* NO_RHOSTS_AUTHENTICATION */
+	  if (!options.rhosts_authentication)
+	    {
+	      log("Rhosts authentication disabled.");
+	      break;
+	    }
+
 	  /* Rhosts authentication (also uses /etc/hosts.equiv). */
 	  if (!privileged_port)
 	    {
@@ -840,9 +1087,14 @@ void do_authentication(char *user, int privileged_port)
 		user, client_user);
 	  xfree(client_user);
 	  break;
-#endif /* NO_RHOSTS_AUTHENTICATION */
 
 	case SSH_CMSG_AUTH_RHOSTS_RSA:
+	  if (!options.rhosts_rsa_authentication)
+	    {
+	      log("Rhosts with RSA authentication disabled.");
+	      break;
+	    }
+
 	  /* Rhosts authentication (also uses /etc/hosts.equiv) with RSA
 	     host authentication. */
 	  if (!privileged_port)
@@ -883,6 +1135,12 @@ void do_authentication(char *user, int privileged_port)
 	  break;
 	  
 	case SSH_CMSG_AUTH_RSA:
+	  if (!options.rsa_authentication)
+	    {
+	      log("RSA authentication disabled.");
+	      break;
+	    }
+
 	  /* RSA authentication requested. */
 	  {
 	    MP_INT n;
@@ -902,6 +1160,12 @@ void do_authentication(char *user, int privileged_port)
 	  break;
 
 	case SSH_CMSG_AUTH_PASSWORD:
+	  if (!options.password_authentication)
+	    {
+	      log("Password authentication disabled.");
+	      break;
+	    }
+
 	  /* Password authentication requested. */
 	  /* Read user password.  It is in plain text, but was transmitted
 	     over the encrypted channel so it is not visible to an outside
@@ -940,6 +1204,16 @@ void do_authentication(char *user, int privileged_port)
       packet_write_wait();
     }
 
+  /* Check if the user is logging in as root and root logins are disallowed. */
+  if (pw->pw_uid == 0 && !options.permit_root_login)
+    {
+      if (forced_command)
+	log("Root login accepted for forced command.", forced_command);
+      else
+	packet_disconnect("ROOT LOGIN REFUSED FROM %.200s", 
+			  get_canonical_hostname());
+    }
+
   /* The user has been authenticated and accepted. */
   packet_start(SSH_SMSG_SUCCESS);
   packet_send();
@@ -963,6 +1237,7 @@ void do_authenticated(struct passwd *pw)
   char *command, *term = NULL, *display = NULL, *proto = NULL, *data = NULL;
   struct group *grp;
   gid_t tty_gid;
+  mode_t tty_mode;
   
   /* Cancel the alarm we set to limit the time taken for authentication. */
   alarm(0);
@@ -1003,15 +1278,25 @@ void do_authenticated(struct passwd *pw)
 	    }
 
 	  /* Determine the group to make the owner of the tty. */
+#ifdef TTY_GROUP
+	  grp = getgrnam(TTY_GROUP);
+#else /* TTY_GROUP */
 	  grp = getgrnam("tty");
+#endif /* TTY_GROUP */
 	  if (grp)
-	    tty_gid = grp->gr_gid;
+	    {
+	      tty_gid = grp->gr_gid;
+	      tty_mode = S_IRUSR|S_IWUSR|S_IWGRP;
+	    }
 	  else
-	    tty_gid = pw->pw_gid;
+	    {
+	      tty_gid = pw->pw_gid;
+	      tty_mode = S_IRUSR|S_IWUSR|S_IWGRP|S_IWOTH;
+	    }
 
 	  /* Change ownership of the tty. */
-	  (void)chmod(ttyname, S_IRUSR|S_IWUSR|S_IWGRP|S_IWOTH);
 	  (void)chown(ttyname, pw->pw_uid, tty_gid);
+	  (void)chmod(ttyname, tty_mode);
 
 	  /* Get TERM from the packet.  Note that the value may be of arbitrary
 	     length. */
@@ -1070,7 +1355,7 @@ void do_authenticated(struct passwd *pw)
 	      goto fail;
 	    }
 	  debug("Received authentication agent forwarding request.");
-	  auth_input_request_forwarding(pw->pw_uid, pw->pw_gid);
+	  auth_input_request_forwarding(pw);
 	  break;
 
 	case SSH_CMSG_PORT_FORWARD_REQUEST:
@@ -1154,19 +1439,31 @@ void do_exec_no_pty(const char *command, struct passwd *pw,
 		    const char *display, const char *auth_proto,
 		    const char *auth_data)
 {  
-  int pin[2], pout[2], perr[2], pid;
-  
+  int pid;
+
+#ifdef USE_PIPES
+  int pin[2], pout[2], perr[2];
   /* Allocate pipes for communicating with the program. */
   if (pipe(pin) < 0 || pipe(pout) < 0 || pipe(perr) < 0)
     packet_disconnect("Could not create pipes to communicate with program: %s",
 		      strerror(errno));
+#else /* USE_PIPES */
+  int inout[2], err[2];
+  /* Uses socket pairs to communicate with the program. */
+  if (socketpair(AF_UNIX, SOCK_STREAM, 0, inout) < 0 ||
+      socketpair(AF_UNIX, SOCK_STREAM, 0, err) < 0)
+    packet_disconnect("Could not create socket pairs to communicate with program: %s",
+		      strerror(errno));
+#endif /* USE_PIPES */
   
   /* Fork the child. */
   if ((pid = fork()) == 0)
     {
       /* Child.  Reinitialize the log since the pid has changed. */
-      log_init(av0, debug_flag, debug_flag, quiet_flag);
+      log_init(av0, debug_flag && !inetd_flag, debug_flag, 
+	       options.quiet_mode, options.log_facility);
 
+#ifdef USE_PIPES
       /* Redirect stdin.  We close the parent side of the socket pair,
          and make the child side the standard input. */
       close(pin[1]);
@@ -1185,6 +1482,19 @@ void do_exec_no_pty(const char *command, struct passwd *pw,
       if (dup2(perr[1], 2) < 0)
 	perror("dup2 stderr");
       close(perr[1]);
+#else /* USE_PIPES */
+      /* Redirect stdin, stdout, and stderr.  Stdin and stdout will use the
+	 same socket, as some programs (particularly rdist) seem to depend
+	 on it. */
+      close(inout[1]);
+      close(err[1]);
+      if (dup2(inout[0], 0) < 0) /* stdin */
+	perror("dup2 stdin");
+      if (dup2(inout[0], 1) < 0) /* stdout.  Note: same socket as stdin. */
+	perror("dup2 stdout");
+      if (dup2(err[0], 2) < 0) /* stderr */
+	perror("dup2 stderr");
+#endif /* USE_PIPES */
 
       /* Do processing for the child (exec command etc). */
       do_child(command, pw, NULL, display, auth_proto, auth_data);
@@ -1192,7 +1502,8 @@ void do_exec_no_pty(const char *command, struct passwd *pw,
     }
   if (pid < 0)
     packet_disconnect("fork failed");
-  /* We are the parent.  Close the child sides of the socket pairs. */
+#ifdef USE_PIPES
+  /* We are the parent.  Close the child sides of the pipes. */
   close(pin[0]);
   close(pout[1]);
   close(perr[1]);
@@ -1200,6 +1511,16 @@ void do_exec_no_pty(const char *command, struct passwd *pw,
   /* Enter the interactive session. */
   do_session(pid, pin[1], pout[0], perr[0]);
   /* do_session has closed pin[1], pout[1], and perr[1]. */
+#else /* USE_PIPES */
+  /* We are the parent.  Close the child sides of the socket pairs. */
+  close(inout[0]);
+  close(err[0]);
+  
+  /* Enter the interactive session.  Note: do_session must be able to handle
+     the case that fdin and fdout are the same. */
+  do_session(pid, inout[1], inout[1], err[1]);
+  /* do_session has closed inout[1] and err[1]. */
+#endif /* USE_PIPES */
 }
 
 /* This is called to fork and execute a command when we have a tty.  This
@@ -1219,6 +1540,8 @@ void do_exec_pty(const char *command, int ptyfd, int ttyfd,
   int fromlen;
   time_t last_login_time;
   char buf[100], *time_string;
+  FILE *f;
+  char line[256];
 
   /* Get IP address of client.  This is needed because we want to record where
      the user logged in from. */
@@ -1245,7 +1568,8 @@ void do_exec_pty(const char *command, int ptyfd, int ttyfd,
   if ((pid = fork()) == 0)
     { 
       /* Child.  Reinitialize the log because the pid has changed. */
-      log_init(av0, debug_flag, debug_flag, quiet_flag);
+      log_init(av0, debug_flag && !inetd_flag, debug_flag, options.quiet_mode, 
+	       options.log_facility);
 
       /* Close the master side of the pseudo tty. */
       close(ptyfd);
@@ -1283,6 +1607,18 @@ void do_exec_pty(const char *command, int ptyfd, int ttyfd,
 	    printf("Last login: %s from %s\r\n", time_string, buf);
 	}
 
+      if (options.print_motd)
+	{
+	  /* Print /etc/motd if it exists. */
+	  f = fopen("/etc/motd", "r");
+	  if (f)
+	    {
+	      while (fgets(line, sizeof(line), f))
+		fputs(line, stdout);
+	      fclose(f);
+	    }
+	}
+
       /* Do common processing for the child, such as execing the command. */
       do_child(command, pw, term, display, auth_proto, auth_data);
       /*NOTREACHED*/
@@ -1307,19 +1643,22 @@ void do_exec_pty(const char *command, int ptyfd, int ttyfd,
   /* do_session has closed ptyfd and fdout. */
 
   /* Record that the user has logged out. */
-  record_logout(pid, ttyname, hostname);
+  record_logout(pid, ttyname);
+
+  /* Release the pseudo-tty. */
+  pty_release(ttyname);
 }
 
-/* Performs common processing for the child, such as setting up the environment,
-   closing extra file descriptors, setting the user and group ids, and
-   executing the command or shell. */
+/* Performs common processing for the child, such as setting up the 
+   environment, closing extra file descriptors, setting the user and group 
+   ids, and executing the command or shell. */
 
 void do_child(const char *command, struct passwd *pw, const char *term,
 	      const char *display, const char *auth_proto, 
 	      const char *auth_data)
 {
   char *eterm, *euser, *ehome, *eshell, *epath, *edisplay, *eauthfd, *etz;
-  char *eclient;
+  char *eclient, *elogname;
   const char *shell, *cp;
   char *env[100];
   char line[256];
@@ -1353,6 +1692,7 @@ void do_child(const char *command, struct passwd *pw, const char *term,
   else
     eterm = NULL;
   euser = xmalloc(strlen("USER=") + strlen(pw->pw_name) + 1);
+  elogname = xmalloc(strlen("LOGNAME=") + strlen(pw->pw_name) + 1);
   ehome = xmalloc(strlen("HOME=") + strlen(pw->pw_dir) + 1);
   eshell = xmalloc(strlen("SHELL=") + strlen(shell) + 1);
   epath = xmalloc(strlen("PATH=") + strlen(DEFAULT_PATH) + 1);
@@ -1361,18 +1701,21 @@ void do_child(const char *command, struct passwd *pw, const char *term,
     edisplay = xmalloc(strlen("DISPLAY=") + strlen(display) + 1);
   else
     edisplay = NULL;
-#ifdef AGENT_USES_SOCKET
-  if (auth_get_socket_name() != NULL)
-    eauthfd = xmalloc(strlen(SSH_AUTHSOCKET_ENV_NAME) + 
-		      strlen(auth_get_socket_name()) + 2);
-  else
-    eauthfd = NULL;
-#else /* AGENT_USES_SOCKET */
-  if (auth_get_fd() >= 0)
-    eauthfd = xmalloc(strlen(SSH_AUTHFD_ENV_NAME) + 6 + 1);
-  else
-    eauthfd = NULL;
-#endif /* AGENT_USES_SOCKET */
+  if (get_permanent_fd(pw->pw_shell) < 0)
+    {
+      if (auth_get_socket_name() != NULL)
+	eauthfd = xmalloc(strlen(SSH_AUTHSOCKET_ENV_NAME) + 
+			  strlen(auth_get_socket_name()) + 2);
+      else
+	eauthfd = NULL;
+    } 
+  else 
+    {
+      if (auth_get_fd() >= 0)
+	eauthfd = xmalloc(strlen(SSH_AUTHFD_ENV_NAME) + 20 + 2);
+      else
+	eauthfd = NULL;
+    }
   /* some systems (e.g. SGIs) don't know anything about our current 
      timezone unless we pass the TZ variable here */
   if (getenv("TZ") != NULL)
@@ -1384,32 +1727,40 @@ void do_child(const char *command, struct passwd *pw, const char *term,
   if (eterm)
     sprintf(eterm, "TERM=%s", term);
   sprintf(euser, "USER=%s", pw->pw_name);
+  sprintf(elogname, "LOGNAME=%s", pw->pw_name);
   sprintf(ehome, "HOME=%s", pw->pw_dir);
   sprintf(eshell, "SHELL=%s", shell);
   sprintf(epath, "PATH=%s", DEFAULT_PATH);
   if (edisplay)
     sprintf(edisplay, "DISPLAY=%s", display);
-#ifdef AGENT_USES_SOCKET
-  if (eauthfd)
-    sprintf(eauthfd, "%s=%s", SSH_AUTHSOCKET_ENV_NAME, auth_get_socket_name());
-#else /* AGENT_USES_SOCKET */
-  if (eauthfd)
-    sprintf(eauthfd, "%s=%d", SSH_AUTHFD_ENV_NAME, auth_get_fd());
-#endif /* AGENT_USES_SOCKET */
+  if (get_permanent_fd(pw->pw_shell) < 0)
+    {
+      if (eauthfd)
+	sprintf(eauthfd, "%s=%s", SSH_AUTHSOCKET_ENV_NAME,
+		auth_get_socket_name());
+    }
+  else
+    {
+      if (eauthfd)
+	sprintf(eauthfd, "%s=%d", SSH_AUTHFD_ENV_NAME, auth_get_fd());
+    }
   if (etz)
     sprintf(etz, "TZ=%s", getenv("TZ"));
 
   /* Get remote address. */
   fromlen = sizeof(from);
-  getpeername(packet_get_connection(), (struct sockaddr *)&from, &fromlen);
-  sprintf(eclient, "SSH_CLIENT=%s %d %d", 
-	  inet_ntoa(from.sin_addr), ntohs(from.sin_port), port);
+  if (getpeername(packet_get_connection(), (struct sockaddr *)&from, &fromlen) < 0)
+    log("getpeername connection (%d) failed: %s", packet_get_connection(),
+	strerror(errno));
+  sprintf(eclient, "SSH_CLIENT=%.50s %d %d", 
+	  inet_ntoa(from.sin_addr), ntohs(from.sin_port), options.port);
 
   /* Build the environment array. */
   i = 0;
   if (eterm)
     env[i++] = eterm;
   env[i++] = euser;
+  env[i++] = elogname;
   env[i++] = ehome;
   env[i++] = eshell;
   env[i++] = epath;
@@ -1488,13 +1839,12 @@ void do_child(const char *command, struct passwd *pw, const char *term,
   /* Add authority data to .Xauthority if appropriate. */
   if (auth_proto != NULL && auth_data != NULL)
     {
-      char buf[1024];
-      sprintf(buf, "%s add %.300s %.100s %.200s",
-	      XAUTH_PATH, display, auth_proto, auth_data);
-      debug("Running %.900s", buf);
+      debug("Running %.100s add %.100s %.100s %.100s",
+	    XAUTH_PATH, display, auth_proto, auth_data);
       if (fork() == 0)
 	{ /* Child */
-	  execle(shell, shell, "-c", buf, NULL, env);
+	  execle(XAUTH_PATH, XAUTH_PATH, "add", display, auth_proto, auth_data,
+		 NULL, env);
 	  perror("execle");
 	  exit(1);
 	}
@@ -1533,6 +1883,8 @@ void do_child(const char *command, struct passwd *pw, const char *term,
   exit(1);
 }
 
+#ifdef HPSUX_BROKEN_PTYS
+
 /* This SIGCHLD kludge is for HPSUX, because its pty code is broken.
    It does not pass EOF from the slave side to the master side.  */
 
@@ -1559,6 +1911,8 @@ RETSIGTYPE sigchld_handler(int sig)
     }
   signal(SIGCHLD, sigchld_handler);
 }
+
+#endif /* HPSUX_BROKEN_PTYS */
 
 /* Performs the interactive session.  This handles data transmission between
    the client and the program.  Note that the notion of stdin, stdout, and
@@ -1588,12 +1942,16 @@ void do_session(int pid, int fdin, int fdout, int fderr)
   char *data;
   unsigned int data_len;
   char buf[16384];
+
+#ifdef HPSUX_BROKEN_PTYS
   struct timeval tv;
 
   /* Kludge for HPSUX. */
   do_session_pid = pid;
   do_session_child_terminated = 0;
   signal(SIGCHLD, sigchld_handler);
+
+#endif /* HPSUX_BROKEN_PTYS */
 
   debug("Entering interactive session.");
 
@@ -1716,10 +2074,11 @@ void do_session(int pid, int fdin, int fdout, int fderr)
 
 	    default:
 	      /* In this phase, any unexpected messages cause a protocol
-		 error.  This is to ease debugging; also, since no confirmations
-		 are sent messages, unprocessed unknown messages could cause
-		 strange problems.  Any compatible protocol extensions must
-		 be negotiated before entering the interactive session. */
+		 error.  This is to ease debugging; also, since no 
+		 confirmations are sent messages, unprocessed unknown 
+		 messages could cause strange problems.  Any compatible 
+		 protocol extensions must be negotiated before entering the 
+		 interactive session. */
 	      packet_disconnect("Protocol error during session: type %d", 
 				type);
 	    }
@@ -1729,7 +2088,10 @@ void do_session(int pid, int fdin, int fdout, int fderr)
 	 cause a real eof by closing fdin. */
       if (stdin_eof && fdin != -1 && buffer_len(&stdin_buffer) == 0)
 	{
-	  close(fdin);
+	  if (fdin == fdout)
+	    shutdown(fdin, 1); /* We will no longer send. */
+	  else
+	    close(fdin);
 	  fdin = -1;
 	}
 
@@ -1738,8 +2100,16 @@ void do_session(int pid, int fdin, int fdout, int fderr)
 	     packet_not_very_much_data_to_write())
 	{
 	  len = buffer_len(&stderr_buffer);
-	  if (len > 32768)
-	    len = 32768;  /* Keep the packets at reasonable size. */
+	  if (packet_is_interactive())
+	    {
+	      if (len > 512)
+		len = 512;
+	    }
+	  else
+	    {
+	      if (len > 32768)
+		len = 32768;  /* Keep the packets at reasonable size. */
+	    }
 	  packet_start(SSH_SMSG_STDERR_DATA);
 	  packet_put_string(buffer_ptr(&stderr_buffer), len);
 	  packet_send();
@@ -1752,8 +2122,16 @@ void do_session(int pid, int fdin, int fdout, int fderr)
 	     packet_not_very_much_data_to_write())
 	{
 	  len = buffer_len(&stdout_buffer);
-	  if (len > 32768)
-	    len = 32768;  /* Keep the packets at reasonable size. */
+	  if (packet_is_interactive())
+	    {
+	      if (len > 512)
+		len = 512;
+	    }
+	  else
+	    {
+	      if (len > 32768)
+		len = 32768;  /* Keep the packets at reasonable size. */
+	    }
 	  packet_start(SSH_SMSG_STDOUT_DATA);
 	  packet_put_string(buffer_ptr(&stdout_buffer), len);
 	  packet_send();
@@ -1820,15 +2198,35 @@ void do_session(int pid, int fdin, int fdout, int fderr)
       if (channel_max_fd() > max_fd)
 	max_fd = channel_max_fd();
 
+#ifdef HPSUX_BROKEN_PTYS
+
       /* Kludge for HPSUX: if the child has terminated, read as much
          is available, and then terminate. */
-      tv.tv_sec = do_session_child_terminated ? 0 : 1000000;
-      tv.tv_usec = 0;
+      if (do_session_child_terminated)
+	{
+	  tv.tv_usec = 100000;
+	  tv.tv_sec = 0;
+	}
+      else
+	{
+	  tv.tv_usec = 0;
+	  tv.tv_sec = 1000000;
+	}
 
       /* Wait for something to happen.  If you want to implement support
          for SSH_MSG_IGNORE messages being automatically sent, this is
 	 a good place to send them (with a random timeout from select). */
       ret = select(max_fd + 1, &readset, &writeset, NULL, &tv);
+
+#else /* HPSUX_BROKEN_PTYS */
+
+      /* Wait for something to happen.  If you want to implement support
+         for SSH_MSG_IGNORE messages being automatically sent, this is
+	 a good place to send them (with a random timeout from select). */
+      ret = select(max_fd + 1, &readset, &writeset, NULL, NULL);
+
+#endif /* HPSUX_BROKEN_PTYS */
+
       if (ret < 0)
 	{
 	  if (errno == EINTR)
@@ -1837,23 +2235,27 @@ void do_session(int pid, int fdin, int fdout, int fderr)
 	  goto quit;
 	}
 
+#ifdef HPSUX_BROKEN_PTYS
+
       /* Kludge for HPSUX continues. */
       if (ret == 0 && do_session_child_terminated)
 	{
 	  if (fdout != -1)
 	    close(fdout);
-	  fdout = -1;
-	  fdout_eof = 1;
 	  if (fderr != -1)
 	    close(fderr);
+	  if (fdin != -1 && fdin != fdout)
+	    close(fdin);
+	  fdout = -1;
+	  fdout_eof = 1;
 	  fderr = -1;
 	  fderr_eof = 1;
-	  if (fdin != -1)
-	    close(fdin);
 	  fdin = -1;
 	  /* We will keep looping here as long as there is data to send in
 	     some direction. */
 	}
+
+#endif /* HPSUX_BROKEN_PTYS */
 
       /* Process any channel events. */
       channel_after_select(&readset, &writeset);
@@ -1908,7 +2310,10 @@ void do_session(int pid, int fdin, int fdout, int fderr)
 		      buffer_len(&stdin_buffer));
 	  if (len <= 0)
 	    {
-	      close(fdin);
+	      if (fdin == fdout)
+		shutdown(fdin, 1); /* We will no longer send. */
+	      else
+		close(fdin);
 	      fdin = -1;
 	    }
 	  else
@@ -1962,10 +2367,10 @@ void do_session(int pid, int fdin, int fdout, int fderr)
   buffer_free(&stderr_buffer);
 
   /* Close the file descriptors. */
-  if (fdin != -1)
-    close(fdin);
   if (fdout != -1)
     close(fdout);
+  if (fdin != -1 && fdin != fdout)
+    close(fdin);
   if (fderr != -1)
     close(fderr);
 
@@ -1976,6 +2381,7 @@ void do_session(int pid, int fdin, int fdout, int fderr)
   wait_pid = wait(&wait_status);
   if (wait_pid < 0)
     {
+#ifdef HPSUX_BROKEN_PTYS
       /* HPSUX kludge continues. */
       /* It is possible that the wait was handled by SIGCHLD handler.  This
 	 may result in either: this call returning with EINTR, or: this
@@ -1984,6 +2390,10 @@ void do_session(int pid, int fdin, int fdout, int fderr)
 	wait_status = do_session_wait_status;
       else
 	packet_disconnect("wait: %s", strerror(errno));
+#else /* HPSUX_BROKEN_PTYS */
+      /* Strange, wait for the child failed. */
+      packet_disconnect("wait: %s", strerror(errno));
+#endif /* HPSUX_BROKEN_PTYS */
     }
   else
     {

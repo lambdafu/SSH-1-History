@@ -8,9 +8,23 @@ Copyright (c) 1995 Tatu Ylonen <ylo@cs.hut.fi>, Espoo, Finland
                    All rights reserved
 
 Created: Sat Mar  4 14:55:57 1995 ylo
-Last modified: Mon Jun 26 00:28:58 1995 ylo
+
+Cryptographically strong random number generation.
 
 */
+
+/*
+ * $Id: randoms.c,v 1.3 1995/08/29 22:22:50 ylo Exp $
+ * $Log: randoms.c,v $
+ * Revision 1.3  1995/08/29  22:22:50  ylo
+ * 	Removed extra '&'.
+ *
+ * Revision 1.2  1995/07/13  01:29:20  ylo
+ * 	Removed "Last modified" header.
+ * 	Added cvs log.
+ *
+ * $Endlog$
+ */
 
 #include "includes.h"
 #include "randoms.h"
@@ -63,7 +77,7 @@ void random_initialize(RandomState *state, const char *filename)
 
   /* Get noise from the address on stack and argument addresses. */
   state->state[0] ^= (unsigned long)state;
-  state->state[1] ^= (unsigned long)&buf;
+  state->state[1] ^= (unsigned long)buf;
   state->state[2] ^= (unsigned long)filename;
   state->state[3] ^= f;
   random_add_noise(state, filename, strlen(filename));
