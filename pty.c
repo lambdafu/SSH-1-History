@@ -180,8 +180,16 @@ int pty_allocate(int *ptyfd, int *ttyfd, char *namebuf)
 #ifdef CRAY
   char buf[64];
   int i;
+  int highpty;
 
-  for (i = 0; i < 128; i++)
+#ifdef _SC_CRAY_NPTY
+  highpty=sysconf(_SC_CRAY_NPTY);
+  if (highpty==-1) highpty=128;
+#else
+  highpty=128;
+#endif
+
+  for (i = 0; i < highpty; i++)
     {
       sprintf(buf, "/dev/pty/%03d", i);
       *ptyfd = open(buf, O_RDWR|O_NOCTTY);
@@ -221,6 +229,11 @@ int pty_allocate(int *ptyfd, int *ttyfd, char *namebuf)
 	continue;
       sprintf(namebuf, "/dev/tty%c%c", ptymajors[i / num_minors], 
 	      ptyminors[i % num_minors]);
+
+#ifdef HAVE_REVOKE
+      if (revoke(namebuf) == -1)
+ 	error("pty_allocate: revoke failed for %.100s", namebuf);
+#endif
 
       /* Open the slave side. */
       *ttyfd = open(namebuf, O_RDWR|O_NOCTTY);
@@ -266,14 +279,6 @@ void pty_make_controlling_tty(int *ttyfd, const char *ttyname)
       close(fd);
     }
 #endif /* TIOCNOTTY */
-#ifdef HAVE_SETSID
-#ifdef ultrix
-  setpgrp(0, 0);
-#else /* ultrix */
-  if (setsid() < 0)
-    error("setsid: %.100s", strerror(errno));
-#endif /* ultrix */
-#endif /* HAVE_SETSID */
   
   /* Verify that we are successfully disconnected from the controlling tty. */
   fd = open("/dev/tty", O_RDWR|O_NOCTTY);
@@ -290,6 +295,12 @@ void pty_make_controlling_tty(int *ttyfd, const char *ttyname)
      EINVAL with these arguments, and there is absolutely no documentation. */
   ioctl(*ttyfd, TIOCSCTTY, NULL);
 #endif /* TIOCSCTTY */
+
+#ifdef CRAY
+  debug("Setting controlling tty using TCSETCTTY.");
+  ioctl(*ttyfd, TCSETCTTY, NULL);
+#endif
+
   fd = open(ttyname, O_RDWR);
   if (fd < 0)
     error("%.100s: %.100s", ttyname, strerror(errno));
@@ -304,7 +315,7 @@ void pty_make_controlling_tty(int *ttyfd, const char *ttyname)
   else
     {
       close(fd);
-#ifdef HAVE_VHANGUP
+#if defined(HAVE_VHANGUP) && !defined(HAVE_REVOKE)
       signal(SIGHUP, SIG_IGN);
       vhangup();
       signal(SIGHUP, SIG_DFL);
@@ -314,7 +325,7 @@ void pty_make_controlling_tty(int *ttyfd, const char *ttyname)
 	      ttyname);
       close(*ttyfd);
       *ttyfd = fd;
-#endif /* HAVE_VHANGUP */
+#endif /* HAVE_VHANGUP && !HAVE_REVOKE */
     }
 }
 
@@ -323,11 +334,13 @@ void pty_make_controlling_tty(int *ttyfd, const char *ttyname)
 void pty_change_window_size(int ptyfd, int row, int col,
 			    int xpixel, int ypixel)
 {
+#ifdef SIGWINCH
   struct winsize w;
   w.ws_row = row;
   w.ws_col = col;
   w.ws_xpixel = xpixel;  
   w.ws_ypixel = ypixel;
   (void)ioctl(ptyfd, TIOCSWINSZ, &w);
+#endif /* SIGWINCH */
 }
 

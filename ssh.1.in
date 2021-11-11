@@ -60,7 +60,7 @@ ssh \- secure shell client (remote login program)
 [\c
 .B \-c
 \fIidea\fR\||\|\fIdes\fR\||\|\fI3des\c
-\fR\||\|\fIrc4\fR\||\|\fItss\fR\||\|\fInone\fR\c
+\fR\||\|\fIarcfour\fR\||\|\fItss\fR\||\|\fInone\fR\c
 ]
 [\c
 .BI \-e \ escape_char\fR\c
@@ -319,23 +319,22 @@ Disables forwarding of the authentication agent connection.  This may
 also be specified on a per-host basis in the configuration file.
 .ne 3
 .TP
-.BI \-c \ \fIidea\fR\||\|\fIdes\fR\||\|\fI3des\fR\||\|\fIrc4\fR\||\|\fItss\fR\||\|\fInone\fR
+.BI \-c \ \fIidea\fR\||\|\fIdes\fR\||\|\fI3des\fR\||\|\fIarcfour\fR\||\|\fItss\fR\||\|\fInone\fR
 Selects the cipher to use for encrypting the session. 
-.B \s-1IDEA\s0
+.B \s-1idea\s0
 is used by default.  It is believed to be secure. 
-.B \s-1DES\s0
+.B \s-1des\s0
 is the data encryption standard, but is breakable by 
 governments, large corporations, and major criminal organizations.
-.B \s-13DES\s0
+.B \s-13des\s0
 (triple-des) is encrypt-decrypt-encrypt triple with three different
 keys.  It is presumably more secure than
 DES.  It is used as default if both sites do not support IDEA.
-.B \s-1RC4\s0
-is the RC4
-algorithm posted in the Usenet News in 1995 (RC4 was
-originally a trade secret algorithm of RSA Data Security and has not
-been published; however, this implementation is widely believed to be
-equivalent).  This is the fastest algorithm currently supported.
+.B \s-1arcfour\s0
+is an algorithm published in the Usenet News in 1995.
+This algorithm is believed to be equivalent with the RC4 cipher from
+RSA Data Security (RC4 is a trademark of RSA Data Security).  This is
+the fastest algorithm currently supported.
 .B \s-1TSS\s0
 is a fast home-grown algorithm based on MD5. 
 .B none
@@ -353,9 +352,10 @@ escapes and makes the session fully transparent.
 .ne 3
 .TP
 .B \-f
-Requests ssh to go to background after authentication.  This is useful
-if ssh is going to ask for passwords or passphrases, but the user
-wants it in the background.  This implies 
+Requests ssh to go to background after authentication is done and
+forwardings have been established.  This is useful if ssh is going to
+ask for passwords or passphrases, but the user wants it in the
+background.  This may also be useful in scripts.  This implies
 .B \-n.
 The recommended way to start X11 programs at a remote site is with
 something like "ssh -f host xterm".
@@ -521,7 +521,7 @@ Specifies the cipher to use for encrypting the session.  Currently,
 .IR idea ",
 .IR des ",
 .IR 3des ",
-.IR rc4 ",
+.IR arcfour ",
 .IR tss ",
 and
 .I none
@@ -704,7 +704,7 @@ ssh will never automatically add host keys to the
 file, and refuses to connect hosts whose host key has changed.  This
 provides maximum protection against trojan horse attacks.  However, it
 can be somewhat annoying if you don't have good
-.I /etc/ssh_known_hosts
+.I @ETCDIR@/ssh_known_hosts
 files installed and frequently
 connect new hosts.  Basically this option forces the user to manually
 add any new hosts.  Normally this option is disabled, and new hosts
@@ -712,7 +712,7 @@ will automatically be added to the known host files.  The host keys of
 known hosts will be verified automatically in either case.  The
 argument must be
 .YN
-.ne3
+.ne 3
 .TP
 .B User
 Specifies the user to log in as.  This can be useful if you have a
@@ -915,14 +915,9 @@ host/user pairs that are permitted to log in.  (Note that this file is
 also used by rlogin and rsh, which makes using this file insecure.)
 Each line of the file contains a host name (in the canonical form
 returned by name servers), and then a user name on that host,
-separated by a space.  One some machines this file may need to be
-world-readable if the user's home directory is on a NFS partition,
-because
-.B sshd 
-reads it as root.  Additionally, this file must be owned by the user,
+separated by a space.  This file must be owned by the user,
 and must not have write permissions for anyone else.  The recommended
-permission for most machines is read/write for the user, and not
-accessible by others.
+permission is read/write for the user, and not accessible by others.
 .IP
 Note that by default
 .B sshd
@@ -996,7 +991,7 @@ drops any extra privileges immediately after the connection to the
 remote host has been made.
 .LP
 Considerable work has been put into making
-.B sshd
+.B ssh
 secure.  However, if you find a security problem, please report it
 immediately to <ssh-bugs@cs.hut.fi>.
 

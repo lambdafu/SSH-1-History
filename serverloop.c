@@ -46,6 +46,7 @@ static int max_fd;		/* Max file descriptor number for select(). */
 static int child_pid;  			/* Pid of the child. */
 static volatile int child_terminated;	/* The child has terminated. */
 static volatile int child_wait_status;	/* Status from wait(). */
+static int child_just_terminated;	/* No select() done after termin. */
 
 RETSIGTYPE sigchld_handler(int sig)
 {
@@ -59,7 +60,10 @@ RETSIGTYPE sigchld_handler(int sig)
 	      wait_pid, child_pid);
       if (WIFEXITED(child_wait_status) ||
 	  WIFSIGNALED(child_wait_status))
-	child_terminated = 1;
+	{
+	  child_terminated = 1;
+	  child_just_terminated = 1;
+	}
     }
   signal(SIGCHLD, sigchld_handler);
 }
@@ -168,6 +172,8 @@ void make_packets_from_stderr_data()
 	{
 	  if (len > 32768)
 	    len = 32768;  /* Keep the packets at reasonable size. */
+	  if (len > packet_max_size() / 2)
+	    len = packet_max_size() / 2;
 	}
       packet_start(SSH_SMSG_STDERR_DATA);
       packet_put_string(buffer_ptr(&stderr_buffer), len);
@@ -198,6 +204,8 @@ void make_packets_from_stdout_data()
 	{
 	  if (len > 32768)
 	    len = 32768;  /* Keep the packets at reasonable size. */
+	  if (len > packet_max_size() / 2)
+	    len = packet_max_size() / 2;
 	}
       packet_start(SSH_SMSG_STDOUT_DATA);
       packet_put_string(buffer_ptr(&stdout_buffer), len);
@@ -217,6 +225,9 @@ void wait_until_can_do_something(fd_set *readset, fd_set *writeset,
 {
   struct timeval tv, *tvp;
   int ret;
+
+  /* Mark that we have slept since the child died. */
+  child_just_terminated = 0;
 
   /* Initialize select() masks. */
   FD_ZERO(readset);
@@ -284,7 +295,7 @@ void wait_until_can_do_something(fd_set *readset, fd_set *writeset,
   
   /* If the child has terminated and there was no data, close all descriptors
      to it. */
-  if (ret <= 0 && child_terminated)
+  if (ret <= 0 && child_terminated && !child_just_terminated)
     {
       if (fdout != -1)
 	close(fdout);
@@ -313,7 +324,8 @@ void process_input(fd_set *readset)
     {
       len = read(connection_in, buf, sizeof(buf));
       if (len == 0)
-	fatal("Connection closed by remote host.");
+	fatal_severity(SYSLOG_SEVERITY_INFO, 
+		       "Connection closed by remote host.");
 
       /* There is a kernel bug on Solaris that causes select to sometimes
 	 wake up even though there is no data available. */
@@ -321,7 +333,8 @@ void process_input(fd_set *readset)
 	len = 0;
 
       if (len < 0)
-	fatal("Read error from remote host: %.100s", strerror(errno));
+	fatal_severity(SYSLOG_SEVERITY_INFO,
+		       "Read error from remote host: %.100s", strerror(errno));
 
       /* Buffer any received data. */
       packet_process_incoming(buf, len);
@@ -523,7 +536,7 @@ void server_loop(int pid, int fdin_arg, int fdout_arg, int fderr_arg)
 	{
 	  if (!channel_still_open())
 	    goto quit;
-	  if (!waiting_termination)
+	  if (!waiting_termination && !child_just_terminated)
 	    {
 	      const char *s = 
 		"Waiting for forwarded connections to terminate...\r\n";
@@ -616,6 +629,8 @@ void server_loop(int pid, int fdin_arg, int fdout_arg, int fderr_arg)
       do
 	{
 	  type = packet_read();
+	  if (type != SSH_CMSG_EXIT_CONFIRMATION)
+	    debug("Received packet of type %d after exit.\n", type);
 	}
       while (type != SSH_CMSG_EXIT_CONFIRMATION);
 
