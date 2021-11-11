@@ -15,8 +15,11 @@ authentication.
 */
 
 /*
- * $Id: auth-rh-rsa.c,v 1.4 1995/08/31 09:18:58 ylo Exp $
+ * $Id: auth-rh-rsa.c,v 1.5 1995/09/21 17:06:50 ylo Exp $
  * $Log: auth-rh-rsa.c,v $
+ * Revision 1.5  1995/09/21  17:06:50  ylo
+ * 	Added ignore_rhosts.
+ *
  * Revision 1.4  1995/08/31  09:18:58  ylo
  * 	Tilde-expand the name of user hostfile.
  *
@@ -30,14 +33,17 @@ authentication.
 #include "packet.h"
 #include "ssh.h"
 #include "xmalloc.h"
+#include "uidswap.h"
 
 /* Tries to authenticate the user using the .rhosts file and the host using
-   its host key.  Returns true if authentication succeeds. */
+   its host key.  Returns true if authentication succeeds. 
+   .rhosts and .shosts will be ignored if ignore_rhosts is non-zero. */
 
 int auth_rhosts_rsa(RandomState *state,
 		    struct passwd *pw, const char *client_user,
 		    unsigned int client_host_key_bits,
-		    MP_INT *client_host_key_e, MP_INT *client_host_key_n)
+		    MP_INT *client_host_key_e, MP_INT *client_host_key_n,
+		    int ignore_rhosts, int strict_modes)
 {
   char *user_hostfile;
   const char *canonical_hostname;
@@ -45,7 +51,7 @@ int auth_rhosts_rsa(RandomState *state,
   debug("Trying rhosts with RSA host authentication for %.100s", client_user);
 
   /* Check if we would accept it using rhosts authentication. */
-  if (!auth_rhosts(pw, client_user))
+  if (!auth_rhosts(pw, client_user, ignore_rhosts, strict_modes))
     return 0;
 
   canonical_hostname = get_canonical_hostname();
@@ -57,18 +63,29 @@ int auth_rhosts_rsa(RandomState *state,
   user_hostfile = tilde_expand_filename(SSH_USER_HOSTFILE, pw->pw_uid);
 
   /* Check if we know the host and its host key. */
+  /* Check system-wide host file. */
   if (check_host_in_hostfile(SSH_SYSTEM_HOSTFILE, canonical_hostname,
-			     client_host_key_bits, client_host_key_e,
-			     client_host_key_n) != HOST_OK &&
-      check_host_in_hostfile(user_hostfile, canonical_hostname,
 			     client_host_key_bits, client_host_key_e,
 			     client_host_key_n) != HOST_OK)
     {
-      debug("Rhosts with RSA host authentication denied: unknown or invalid host key");
-      packet_send_debug("Your host key cannot be verified: unknown or invalid host key.");
-      packet_send_debug("Try logging back from the server machine using ssh, and then try again.");
-      return 0;
+      /* Check per-user host file.  Use the user's privileges. */
+      temporarily_use_uid(pw->pw_uid);
+      if (check_host_in_hostfile(user_hostfile, canonical_hostname,
+				 client_host_key_bits, client_host_key_e,
+				 client_host_key_n) != HOST_OK)
+	{
+	  /* Restore privileges. */
+	  restore_uid();
+	  /* The host key was not found. */
+	  debug("Rhosts with RSA host authentication denied: unknown or invalid host key");
+	  packet_send_debug("Your host key cannot be verified: unknown or invalid host key.");
+	  packet_send_debug("Try logging back from the server machine using ssh, and then try again.");
+	  return 0;
+	}
+      /* The host key was found.  Restore privileges. */
+      restore_uid();
     }
+  /* A matching host key was found and is known. */
   
   /* Perform the challenge-response dialog with the client for the host key. */
   if (!auth_rsa_challenge_dialog(state, client_host_key_bits,

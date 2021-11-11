@@ -14,8 +14,26 @@ This file includes most of the needed system headers.
 */
 
 /*
- * $Id: includes.h,v 1.7 1995/08/18 22:54:59 ylo Exp $
+ * $Id: includes.h,v 1.12 1995/10/02 01:22:37 ylo Exp $
  * $Log: includes.h,v $
+ * Revision 1.12  1995/10/02  01:22:37  ylo
+ * 	Added machine/endian.h on Paragon.
+ *
+ * Revision 1.11  1995/09/27  02:14:08  ylo
+ * 	Added support for SCO unix.
+ *
+ * Revision 1.10  1995/09/21  17:11:28  ylo
+ * 	Added Paragon support.
+ * 	Added definition of AF_UNIX_SIZE.
+ *
+ * Revision 1.9  1995/09/13  11:57:21  ylo
+ * 	Changed the code so that "short" gets used as word32 on Cray.
+ * 	Some of the code depends on that.  (BTW, "short" has really
+ * 	weird semantics on Cray...)
+ *
+ * Revision 1.8  1995/09/11  17:35:27  ylo
+ * 	Define word32 properly if any int type is 32 bits.
+ *
  * Revision 1.7  1995/08/18  22:54:59  ylo
  * 	Added using netinet/in_system.h if netinet/in_systm.h does not
  * 	exist (some old linux versions, at least).
@@ -54,10 +72,23 @@ This file includes most of the needed system headers.
 
 typedef unsigned short word16;
 
-#if SIZEOF_LONG == 8
+#if SIZEOF_LONG == 4
+typedef unsigned long word32;
+#else
+#if SIZEOF_INT == 4
 typedef unsigned int word32;
 #else
-typedef unsigned long word32;
+#if SIZEOF_SHORT >= 4
+typedef unsigned short word32;
+#else
+YOU_LOSE
+#endif
+#endif
+#endif
+
+#ifdef SCO
+/* this is defined so that winsize gets ifdef'd in termio.h */
+#define _IBCS2
 #endif
 
 #if defined(__mips)
@@ -69,7 +100,7 @@ typedef unsigned long word32;
 #undef uint32
 #endif /* __mips */
 
-#if defined(bsd_44) || defined(__FreeBSD__) || defined(__NetBSD__)
+#if defined(bsd_44) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(__PARAGON__)
 #include <sys/param.h>
 #include <machine/endian.h>
 #endif
@@ -135,8 +166,23 @@ char *strchr(), *strrchr();
 #else /* Some old linux systems at least have in_system.h instead. */
 #include <netinet/in_system.h>
 #endif /* HAVE_NETINET_IN_SYSTM_H */
+#ifdef SCO
+/* SCO does not have a un.h and there is no appropriate substitute. */
+/* Latest news: it doesn't have AF_UNIX at all, but this allows
+   it to compile, and outgoing forwarded connections appear to work. */
+struct	sockaddr_un {
+	short	sun_family;		/* AF_UNIX */
+	char	sun_path[108];		/* path name (gag) */
+};
+/* SCO needs sys/stream.h and sys/ptem.h */
+#include <sys/stream.h>
+#include <sys/ptem.h>
+#else /* SCO */
 #include <sys/un.h>
+#endif /* SCO */
+#if !defined(__PARAGON__)
 #include <netinet/ip.h>
+#endif /* !__PARAGON__ */
 #include <netinet/tcp.h>
 #include <arpa/inet.h>
 #include <netdb.h>
@@ -175,7 +221,11 @@ char *strchr(), *strrchr();
 #endif /* HAVE_UNISTD_H */
 
 #ifdef TIME_WITH_SYS_TIME
+#ifndef SCO
+/* I excluded <sys/time.h> to avoid redefinition of timeval 
+   which SCO puts in both <sys/select.h> and <sys/time.h> */
 #include <sys/time.h>
+#endif /* SCO */
 #include <time.h>
 #else /* TIME_WITH_SYS_TIME */
 #ifdef HAVE_SYS_TIME_H
@@ -242,19 +292,11 @@ char *strchr(), *strrchr();
 WARNING_MACROS_IN_SYS_STAT_H_ARE_BROKEN_ON_YOUR_SYSTEM_READ_INCLUDES_H
 #endif /* STAT_MACROS_BROKEN */
 
-#if defined(__sgi) && defined(__SVR3)
-/* IRIX 4 cc wants to have getpass() prototype but include files
-   do not define it. */
-char *getpass(const char *);
-#endif
-
-#ifdef ultrix
-#undef O_NONBLOCK
-#undef HAVE_SETSID
-#endif
-
-#ifdef sony_news
-#undef HAVE_VHANGUP
+#if USE_STRLEN_FOR_AF_UNIX
+#define AF_UNIX_SIZE(unaddr) \
+  (sizeof((unaddr).sun_family) + strlen((unaddr).sun_path) + 1)
+#else
+#define AF_UNIX_SIZE(unaddr) sizeof(unaddr)
 #endif
 
 #endif /* INCLUDES_H */

@@ -14,8 +14,14 @@ Functions for connecting the local authentication agent.
 */
 
 /*
- * $Id: authfd.c,v 1.5 1995/08/29 22:18:58 ylo Exp $
+ * $Id: authfd.c,v 1.7 1995/09/21 17:08:11 ylo Exp $
  * $Log: authfd.c,v $
+ * Revision 1.7  1995/09/21  17:08:11  ylo
+ * 	Support AF_UNIX_SIZE.
+ *
+ * Revision 1.6  1995/09/09  21:26:38  ylo
+ * /m/shadows/u2/users/ylo/ssh/README
+ *
  * Revision 1.5  1995/08/29  22:18:58  ylo
  * 	Added remove_all_identities.
  *
@@ -67,7 +73,7 @@ int ssh_get_authentication_fd()
   if (sock < 0)
     return -1;
   
-  if (connect(sock, (struct sockaddr *)&sunaddr, sizeof(sunaddr)) < 0)
+  if (connect(sock, (struct sockaddr *)&sunaddr, AF_UNIX_SIZE(sunaddr)) < 0)
     {
       close(sock);
       return -1;
@@ -134,7 +140,7 @@ int ssh_get_authentication_connection_fd()
   /* Start listening for connections on the socket. */
   if (listen(listen_sock, 1) < 0)
     {
-      error("listen: %s", strerror(errno));
+      error("listen: %.100s", strerror(errno));
       close(listen_sock);
       ssh_close_authentication_socket(authfd);
       return -1;
@@ -234,7 +240,7 @@ int ssh_get_first_identity(AuthenticationConnection *auth,
   msg[4] = SSH_AGENTC_REQUEST_RSA_IDENTITIES;
   if (write(auth->fd, msg, 5) != 5)
     {
-      error("write auth->fd: %s", strerror(errno));
+      error("write auth->fd: %.100s", strerror(errno));
       return 0;
     }
 
@@ -245,7 +251,7 @@ int ssh_get_first_identity(AuthenticationConnection *auth,
       l = read(auth->fd, msg + 4 - len, len);
       if (l <= 0)
 	{
-	  error("read auth->fd: %s", strerror(errno));
+	  error("read auth->fd: %.100s", strerror(errno));
 	  return 0;
 	}
       len -= l;
@@ -313,8 +319,8 @@ int ssh_get_next_identity(AuthenticationConnection *auth,
 /* Generates a random challenge, sends it to the agent, and waits for response
    from the agent.  Returns true (non-zero) if the agent gave the correct
    answer, zero otherwise.  Response type selects the style of response
-   desired, with 0 corresponding to protocol version 1.0 and 1 corresponding
-   to protocol version 1.1. */
+   desired, with 0 corresponding to protocol version 1.0 (no longer supported)
+   and 1 corresponding to protocol version 1.1. */
 
 int ssh_decrypt_challenge(AuthenticationConnection *auth,
 			  int bits, MP_INT *e, MP_INT *n, MP_INT *challenge,
@@ -325,6 +331,10 @@ int ssh_decrypt_challenge(AuthenticationConnection *auth,
   Buffer buffer;
   unsigned char buf[8192];
   int len, l, i;
+
+  /* Response type 0 is no longer supported. */
+  if (response_type == 0)
+    fatal("Compatibility with ssh protocol version 1.0 no longer supported.");
 
   /* Format a message to the agent. */
   buf[0] = SSH_AGENTC_RSA_CHALLENGE;

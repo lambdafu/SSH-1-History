@@ -1,4 +1,4 @@
-#!/usr/local/bin/perl -w
+#! &PERL& -w
 # -*- perl -*-
 ######################################################################
 # make-ssh-known-hosts.pl -- Make ssh-known-hosts file
@@ -27,16 +27,19 @@
 #	  (C) Tero Kivinen 1995 <Tero.Kivinen@hut.fi>
 #
 #	  Creation          : 19:52 Jun 27 1995 kivinen
-#	  Last Modification : 10:51 Jul 14 1995 kivinen
-#	  Last check in     : $Date: 1995/08/29 22:37:39 $
-#	  Revision number   : $Revision: 1.3 $
+#	  Last Modification : 17:39 Sep 27 1995 kivinen
+#	  Last check in     : $Date: 1995/10/02 01:23:45 $
+#	  Revision number   : $Revision: 1.4 $
 #	  State             : $State: Exp $
-#	  Version	    : 1.214
-#	  Edit time	    : 63 min
+#	  Version	    : 1.215
+#	  Edit time	    : 66 min
 #
 #	  Description       : Make ssh-known-host file from dns data.
 #
 #	  $Log: make-ssh-known-hosts.pl,v $
+# Revision 1.4  1995/10/02  01:23:45  ylo
+# 	Ping packet size fixes from Kivinen.
+#
 # Revision 1.3  1995/08/29  22:37:39  ylo
 # 	Now uses GlobalKnownHostsFile and UserKnownHostsFile.
 #
@@ -123,9 +126,9 @@ if (defined($opt_nslookup)) { $nslookup = $opt_nslookup; }
 
 if (defined($opt_ping)) { $ping = $opt_ping; }
 
-if (defined($opt_pingpostoptions)) { $ping = $opt_pingpostoptions; }
+if (defined($opt_pingpostoptions)) { $pingpostoptions = $opt_pingpostoptions; }
 
-if (defined($opt_pingpreoptions)) { $ping = $opt_pingpreoptions; }
+if (defined($opt_pingpreoptions)) { $pingpreoptions = $opt_pingpreoptions; }
 
 if (defined($opt_ssh)) { $ssh = $opt_ssh; } else {
     $ssh = "$ssh $sshdisablepasswordoption";
@@ -157,9 +160,9 @@ if (system("$ping > /dev/null 2>&1") != 256) {
 }
 
 if (!defined($pingpreoptions) && !defined($pingpostoptions)) {
-    if (system("$ping localhost 1 1 > /dev/null 2>&1") == 0) {
+    if (system("$ping localhost 64 1 > /dev/null 2>&1") == 0) {
 	$pingpreoptions = '';
-	$pingpostoptions = '1 1';
+	$pingpostoptions = '64 1';
     } elsif (system("$ping -c 1 localhost > /dev/null 2>&1") == 0) {
 	$pingpreoptions = '-c 1';
 	$pingpostoptions = '';

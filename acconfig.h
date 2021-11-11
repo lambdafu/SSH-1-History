@@ -10,6 +10,33 @@ Copyright (c) 1995 Tatu Ylonen <ylo@cs.hut.fi>
 
 /*
  * $Log: acconfig.h,v $
+ * Revision 1.16  1995/10/02  01:18:13  ylo
+ * 	Added NEED_SYS_SYSLOG_H (Ultrix).
+ * 	Added HAVE_SCO_ETC_SHADOW and SCO.
+ *
+ * Revision 1.15  1995/09/27  02:47:19  ylo
+ * 	Added SOCKS stuff.
+ *
+ * Revision 1.14  1995/09/27  02:09:52  ylo
+ * 	Added ETCDIR.
+ * 	Added SPEED_T_IN_STDTYPES_H.
+ *
+ * Revision 1.13  1995/09/21  17:06:23  ylo
+ * 	Added USE_STRLEN_FOR_AF_UNIX.
+ * 	Added USE_PIPES.
+ *
+ * Revision 1.12  1995/09/13  12:05:51  ylo
+ * 	Removed HPSUX_BROKEN_PTYS.
+ *
+ * Revision 1.11  1995/09/11  17:34:54  ylo
+ * 	Added LIBWRAP.
+ *
+ * Revision 1.10  1995/09/10  22:44:21  ylo
+ * 	Added HAVE_OSF1_C2_SECURITY.
+ *
+ * Revision 1.9  1995/09/09  21:26:37  ylo
+ * /m/shadows/u2/users/ylo/ssh/README
+ *
  * Revision 1.8  1995/09/06  15:57:37  ylo
  * 	Added BROKEN_INET_ADDR
  *
@@ -44,21 +71,27 @@ Copyright (c) 1995 Tatu Ylonen <ylo@cs.hut.fi>
 /* Define if you have /dev/pts and /dev/ptc devices (as in AIX). */
 #undef HAVE_DEV_PTS_AND_PTC
 
-/* Define if you have shadow passwords in /etc/master.passwd (NetBSD style). */
-#undef HAVE_ETC_MASTER_PASSWD
-
 /* Define if you have shadow passwords in /etc/security/passwd (AIX style). */
 #undef HAVE_ETC_SECURITY_PASSWD
 
 /* Define if you have shadow passwords in /etc/security/passwd.adjunct
    (SunOS style). */
 #undef HAVE_ETC_SECURITY_PASSWD_ADJUNCT
+  
+/* Define if you have OSF1 C2 security installed on the system */
+#undef HAVE_OSF1_C2_SECURITY
 
 /* Define if you have shadow passwords in /etc/shadow (Solaris style). */
 #undef HAVE_ETC_SHADOW
 
+/* Define if you have system login defaults in /etc/default/login. */
+#undef HAVE_ETC_DEFAULT_LOGIN
+
 /* Define if utmp structure has host field. */
 #undef HAVE_HOST_IN_UTMP
+
+/* Define if utmp structure has addr field. */
+#undef HAVE_ADDR_IN_UTMP
 
 /* Define if utmp structure has id field. */
 #undef HAVE_ID_IN_UTMP
@@ -91,6 +124,21 @@ Copyright (c) 1995 Tatu Ylonen <ylo@cs.hut.fi>
 /* Default path for lastlog.  Determined by configure. */
 #undef SSH_LASTLOG
 
+/* This is defined if we found a lastlog file.  The presence of lastlog.h
+   alone is not a sufficient indicator (at least newer BSD systems have
+   lastlog but no lastlog.h. */
+#undef HAVE_LASTLOG
+
+/* Define this if libutil.a contains BSD 4.4 compatible login(), logout(),
+   and logwtmp() calls. */
+#undef HAVE_LIBUTIL_LOGIN
+
+/* Location of system mail spool directory. */
+#undef MAIL_SPOOL_DIRECTORY
+
+/* Defined if mail goes to $HOME/newmail instead of a global mail spool. */
+#undef HAVE_TILDE_NEWMAIL
+
 /* Define this to be the default user path if you don't like the default. 
    See the --with-path=<path> configure option. */
 #undef DEFAULT_PATH
@@ -98,8 +146,15 @@ Copyright (c) 1995 Tatu Ylonen <ylo@cs.hut.fi>
 /* Define this if O_NONBLOCK does not work on your system (e.g., Ultrix). */
 #undef O_NONBLOCK_BROKEN
 
+/* Define this if sys/syslog.h needs to be included in addition to syslog.h.
+   This is the case on some Ultrix versions. */
+#undef NEED_SYS_SYSLOG_H
+
 /* Define this to leave out IDEA encryption. */
 #undef WITHOUT_IDEA
+
+/* Define this to include libwrap (tcp_wrappers) support. */
+#undef LIBWRAP
 
 /* This is defined to pw_encrypt on Linux when using John Faugh's shadow 
    password implementation. */
@@ -115,10 +170,43 @@ Copyright (c) 1995 Tatu Ylonen <ylo@cs.hut.fi>
    cards. */
 #undef HAVE_SECURID
 
-/* Define this if you have HPUX.  HPSUX has broken ptys (EOF is not passed
-   from the slave side to the master side). */
-#undef HPSUX_BROKEN_PTYS
+/* Define this if you are using HPSUX.  HPUX uses non-standard shared
+   memory communication for X, which seems to be enabled by the display name
+   matching that of the local host.  This circumvents it by using the IP
+   address instead of the host name in DISPLAY. */
+#undef HPSUX_NONSTANDARD_X11_KLUDGE
 
 /* Define this if inet_network should be used instead of inet_addr.  This is
    the case on DGUX 5.4. */
 #undef BROKEN_INET_ADDR
+
+/* Define this if your system does not like sizeof(struct sockaddr_un) as the
+   size argument in bind and connect calls for unix domain sockets. */
+#undef USE_STRLEN_FOR_AF_UNIX
+
+/* Define this to use pipes instead of socketpairs for communicating with the
+   client program.  Socketpairs do not seem to work on all systems. */
+#undef USE_PIPES
+
+/* Directory containing ssh_config, ssh_known_hosts, sshd_pid, etc.  Normally
+   /etc. */
+#undef ETCDIR
+
+/* Define this if speed_t is defined in stdtypes.h or otherwise gets included
+   into ttymodes.c from system headers. */
+#undef SPEED_T_IN_STDTYPES_H
+
+/* Define this if compiling with SOCKS (the firewall traversal library).
+   Also, you must define connect, getsockname, bind, accept, listen, and
+   select to their R-versions. */
+#undef SOCKS
+#undef connect
+#undef getsockname
+#undef bind
+#undef accept
+#undef listen
+#undef select
+
+/* Define these if on SCO Unix. */
+#undef HAVE_SCO_ETC_SHADOW
+#undef SCO

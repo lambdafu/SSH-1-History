@@ -14,8 +14,11 @@ Functions for returning the canonical host name of the remote site.
 */
 
 /*
- * $Id: canohost.c,v 1.4 1995/09/06 15:57:59 ylo Exp $
+ * $Id: canohost.c,v 1.5 1995/09/21 17:08:24 ylo Exp $
  * $Log: canohost.c,v $
+ * Revision 1.5  1995/09/21  17:08:24  ylo
+ * 	Added get_remote_port.
+ *
  * Revision 1.4  1995/09/06  15:57:59  ylo
  * 	Fixed serious bugs.
  *
@@ -34,34 +37,24 @@ Functions for returning the canonical host name of the remote site.
 #include "xmalloc.h"
 #include "ssh.h"
 
-static char *canonical_host_name = NULL;
-static char *canonical_host_ip = NULL;
+/* Return the canonical name of the host at the other end of the socket. 
+   The caller should free the returned string with xfree. */
 
-/* Return the canonical name of the host in the other side of the current
-   connection (as returned by packet_get_connection).  The host name is
-   cached, so it is efficient to call this several times. */
-
-const char *get_canonical_hostname()
+char *get_remote_hostname(int socket)
 {
   struct sockaddr_in from;
-  int fromlen, i, socket;
+  int fromlen, i;
   struct hostent *hp;
   char name[512];
-
-  /* Check if we have previously retrieved this same name. */
-  if (canonical_host_name != NULL)
-    return canonical_host_name;
-
-  /* Get client socket. */
-  socket = packet_get_connection();
 
   /* Get IP address of client. */
   fromlen = sizeof(from);
   memset(&from, 0, sizeof(from));
   if (getpeername(socket, (struct sockaddr *)&from, &fromlen) < 0)
     {
-      error("getpeername failed");
-      return NULL;
+      error("getpeername failed: %.100s", strerror(errno));
+      strcpy(name, "UNKNOWN");
+      goto check_ip_options;
     }
   
   /* Map the IP address to a host name. */
@@ -89,7 +82,8 @@ const char *get_canonical_hostname()
       if (!hp)
 	{
 	  log("reverse mapping checking gethostbyname for %.700s failed - POSSIBLE BREAKIN ATTEMPT!", name);
-	  return NULL;
+	  strcpy(name, inet_ntoa(from.sin_addr));
+	  goto check_ip_options;
 	}
       /* Look for the address from the list of addresses. */
       for (i = 0; hp->h_addr_list[i]; i++)
@@ -102,7 +96,8 @@ const char *get_canonical_hostname()
 	  /* Address not found for the host name. */
 	  log("Address %.100s maps to %.600s, but this does not map back to the address - POSSIBLE BREAKIN ATTEMPT!",
 	      inet_ntoa(from.sin_addr), name);
-	  return NULL;
+	  strcpy(name, inet_ntoa(from.sin_addr));
+	  goto check_ip_options;
 	}
       /* Address was found for the host name.  We accept the host name. */
     }
@@ -112,6 +107,8 @@ const char *get_canonical_hostname()
       strcpy(name, inet_ntoa(from.sin_addr));
       log("Could not reverse map address %.100s.", name);
     }
+
+ check_ip_options:
   
 #ifdef IP_OPTIONS
   /* If IP options are supported, make sure there are none (log and clear
@@ -148,7 +145,28 @@ const char *get_canonical_hostname()
   }
 #endif
 
-  canonical_host_name = xstrdup(name);
+  return xstrdup(name);
+}
+
+static char *canonical_host_name = NULL;
+static char *canonical_host_ip = NULL;
+
+/* Return the canonical name of the host in the other side of the current
+   connection.  The host name is cached, so it is efficient to call this 
+   several times. */
+
+const char *get_canonical_hostname()
+{
+  /* Check if we have previously retrieved this same name. */
+  if (canonical_host_name != NULL)
+    return canonical_host_name;
+
+  /* Get the real hostname if socket; otherwise return UNKNOWN. */
+  if (packet_get_connection_in() == packet_get_connection_out())
+    canonical_host_name = get_remote_hostname(packet_get_connection_in());
+  else
+    canonical_host_name = xstrdup("UNKNOWN");
+
   return canonical_host_name;
 }
 
@@ -164,15 +182,22 @@ const char *get_remote_ipaddr()
   if (canonical_host_ip != NULL)
     return canonical_host_ip;
 
+  /* If not a socket, return UNKNOWN. */
+  if (packet_get_connection_in() != packet_get_connection_out())
+    {
+      canonical_host_ip = xstrdup("UNKNOWN");
+      return canonical_host_ip;
+    }
+
   /* Get client socket. */
-  socket = packet_get_connection();
+  socket = packet_get_connection_in();
 
   /* Get IP address of client. */
   fromlen = sizeof(from);
   memset(&from, 0, sizeof(from));
   if (getpeername(socket, (struct sockaddr *)&from, &fromlen) < 0)
     {
-      error("getpeername failed");
+      error("getpeername failed: %.100s", strerror(errno));
       return NULL;
     }
 
@@ -181,4 +206,42 @@ const char *get_remote_ipaddr()
 
   /* Return ip address string. */
   return canonical_host_ip;
+}
+
+/* Returns the port of the peer of the socket. */
+
+int get_peer_port(int sock)
+{
+  struct sockaddr_in from;
+  int fromlen;
+
+  /* Get IP address of client. */
+  fromlen = sizeof(from);
+  memset(&from, 0, sizeof(from));
+  if (getpeername(sock, (struct sockaddr *)&from, &fromlen) < 0)
+    {
+      error("getpeername failed: %.100s", strerror(errno));
+      return 0;
+    }
+
+  /* Return port number. */
+  return ntohs(from.sin_port);
+}
+
+/* Returns the port number of the remote host.  */
+
+int get_remote_port()
+{
+  int socket;
+
+  /* If the connection is not a socket, return 65535.  This is intentionally
+     chosen to be an unprivileged port number. */
+  if (packet_get_connection_in() != packet_get_connection_out())
+    return 65535;
+
+  /* Get client socket. */
+  socket = packet_get_connection_in();
+
+  /* Get and return the peer port number. */
+  return get_peer_port(socket);
 }
