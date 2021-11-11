@@ -14,8 +14,11 @@ The authentication agent program.
 */
 
 /*
- * $Id: ssh-agent.c,v 1.5 1995/08/29 22:25:22 ylo Exp $
+ * $Id: ssh-agent.c,v 1.6 1995/09/21 17:13:31 ylo Exp $
  * $Log: ssh-agent.c,v $
+ * Revision 1.6  1995/09/21  17:13:31  ylo
+ * 	Support AF_UNIX_SIZE.
+ *
  * Revision 1.5  1995/08/29  22:25:22  ylo
  * 	Added compatibility support for various authentication
  * 	protocol versions.
@@ -97,7 +100,7 @@ void process_request_identity(SocketEntry *e)
 void process_authentication_challenge(SocketEntry *e)
 {
   int i, pub_bits;
-  MP_INT pub_e, pub_n, challenge, aux;
+  MP_INT pub_e, pub_n, challenge;
   Buffer msg;
   struct MD5Context md;
   unsigned char buf[32], mdbuf[16], session_id[16];
@@ -135,22 +138,10 @@ void process_authentication_challenge(SocketEntry *e)
 	switch (response_type)
 	  {
 	  case 0: /* As of protocol 1.0 */
-	    /* Convert the decrypted data into a 32 byte buffer. */
-	    mpz_init(&aux);
-	    for (i = 0; i < 32; i++)
-	      {
-		mpz_mod_2exp(&aux, &challenge, 8);
-		buf[i] = mpz_get_ui(&aux);
-		mpz_div_2exp(&challenge, &challenge, 8);
-	      }
-	    mpz_clear(&aux);
-	
-	    /* Compute the MD5 of the resulting buffer.  The purpose of 
-	       computing MD5 is to prevent chosen plaintext attack. */
-	    MD5Init(&md);
-	    MD5Update(&md, buf, 32);
-	    MD5Final(mdbuf, &md);
-	    break;
+	    /* This response type is no longer supported. */
+	    log("Compatibility with ssh protocol 1.0 no longer supported.");
+	    buffer_put_char(&msg, SSH_AGENT_FAILURE);
+	    goto send;
 
 	  case 1: /* As of protocol 1.1 */
 	    /* The response is MD5 of decrypted challenge plus session id. */
@@ -351,13 +342,13 @@ void process_message(SocketEntry *e)
 void new_socket(int type, int fd)
 {
   unsigned int i, old_alloc;
-#ifdef O_NONBLOCK
+#if defined(O_NONBLOCK) && !defined(O_NONBLOCK_BROKEN)
   if (fcntl(fd, F_SETFL, O_NONBLOCK) < 0)
     error("fcntl O_NONBLOCK: %s", strerror(errno));
-#else /* O_NONBLOCK */  
+#else /* O_NONBLOCK && !O_NONBLOCK_BROKEN */
   if (fcntl(fd, F_SETFL, O_NDELAY) < 0)
     error("fcntl O_NDELAY: %s", strerror(errno));
-#endif /* O_NONBLOCK */
+#endif /* O_NONBLOCK && !O_NONBLOCK_BROKEN */
 
   if (fd > max_fd)
     max_fd = fd;
@@ -576,7 +567,7 @@ int main(int ac, char **av)
       memset(&sunaddr, 0, sizeof(sunaddr));
       sunaddr.sun_family = AF_UNIX;
       strncpy(sunaddr.sun_path, socket_name, sizeof(sunaddr.sun_path));
-      if (bind(sock, (struct sockaddr *)&sunaddr, sizeof(sunaddr)) < 0)
+      if (bind(sock, (struct sockaddr *)&sunaddr, AF_UNIX_SIZE(sunaddr)) < 0)
 	{
 	  perror("bind");
 	  exit(1);
@@ -660,14 +651,4 @@ int main(int ac, char **av)
       after_select(&readset, &writeset);
     }
   /*NOTREACHED*/
-}
-
-void fatal(const char *fmt, ...)
-{
-  va_list args;
-  va_start(args, fmt);
-  vfprintf(stderr, fmt, args);
-  fprintf(stderr, "\n");
-  va_end(args);
-  exit(1);
 }

@@ -18,8 +18,14 @@ on a tty.
 */
 
 /*
- * $Id: login.c,v 1.5 1995/07/27 00:38:43 ylo Exp $
+ * $Id: login.c,v 1.7 1995/09/21 17:11:52 ylo Exp $
  * $Log: login.c,v $
+ * Revision 1.7  1995/09/21  17:11:52  ylo
+ * 	Added NULL second argument to gettimeofday.
+ *
+ * Revision 1.6  1995/09/09  21:26:43  ylo
+ * /m/shadows/u2/users/ylo/ssh/README
+ *
  * Revision 1.5  1995/07/27  00:38:43  ylo
  * 	Use SSH_{WTMP,UTMP,LASTLOG} instead of hard-coded default
  * 	values if path not defined in header.
@@ -54,24 +60,25 @@ on a tty.
 #include "ssh.h"
 
 /* Returns the time when the user last logged in.  Returns 0 if the 
-   information is not available.  This must be called before record_login. */
+   information is not available.  This must be called before record_login. 
+   The host the user logged in from will be returned in buf. */
 
 #ifdef LASTLOG_IS_DIR
 unsigned long get_last_login_time(uid_t uid, const char *name, 
 				  char *buf, unsigned int bufsize)
 {
-#ifdef HAVE_LASTLOG_H
+#if defined(HAVE_LASTLOG_H) || defined(HAVE_LASTLOG)
   struct lastlog ll;
-  char lastlogfile[100];
+  char lastlogfile[500];
   int fd;
 
 #ifdef _PATH_LASTLOG
-  sprintf(lastlogfile, "%s/%s", _PATH_LASTLOG, name);
+  sprintf(lastlogfile, "%.200s/%.200s", _PATH_LASTLOG, name);
 #else
 #ifdef LASTLOG_FILE
-  sprintf(lastlogfile, "%s/%s", LASTLOG_FILE, name);
+  sprintf(lastlogfile, "%.200s/%.200s", LASTLOG_FILE, name);
 #else
-  sprintf(lastlogfile, "/var/adm/lastlog/%s", name);
+  sprintf(lastlogfile, "%.200s/%.200s", SSH_LASTLOG, name);
 #endif
 #endif
 
@@ -92,19 +99,22 @@ unsigned long get_last_login_time(uid_t uid, const char *name,
   buf[bufsize - 1] = 0;
   return ll.ll_time;
   
-#else /* HAVE_LASTLOG_H */
+#else /* HAVE_LASTLOG_H || HAVE_LASTLOG */
 
   return 0;
 
-#endif /* HAVE_LASTLOG_H */
+#endif /* HAVE_LASTLOG_H || HAVE_LASTLOG */
 }
 
 #else /* LASTLOG_IS_DIR */
 
+/* Returns the time when the user last logged in (or 0 if no previous login
+   is found).  The name of the host used last time is returned in buf. */
+
 unsigned long get_last_login_time(uid_t uid, const char *logname,
 				  char *buf, unsigned int bufsize)
 {
-#ifdef HAVE_LASTLOG_H
+#if defined(HAVE_LASTLOG_H) || defined(HAVE_LASTLOG)
 
   struct lastlog ll;
   char *lastlog;
@@ -116,11 +126,7 @@ unsigned long get_last_login_time(uid_t uid, const char *logname,
 #ifdef LASTLOG_FILE
   lastlog = LASTLOG_FILE;
 #else
-#ifdef _NEXT_SOURCE
-  lastlog = "/usr/adm/lastlog";
-#else
-  lastlog = "/var/adm/lastlog";
-#endif
+  lastlog = SSH_LASTLOG;
 #endif
 #endif
 
@@ -142,7 +148,7 @@ unsigned long get_last_login_time(uid_t uid, const char *logname,
   buf[bufsize - 1] = 0;
   return ll.ll_time;
 
-#else /* HAVE_LASTLOG_H */
+#else /* HAVE_LASTLOG_H || HAVE_LASTLOG */
 
 #ifdef HAVE_USERSEC_H
 
@@ -172,7 +178,7 @@ unsigned long get_last_login_time(uid_t uid, const char *logname,
 
 #endif /* HAVE_USERSEC_H */
 
-#endif /* HAVE_LASTLOG_H */
+#endif /* HAVE_LASTLOG_H || HAVE_LASTLOG */
 }
 #endif /* LASTLOG_IS_DIR */
 
@@ -180,17 +186,17 @@ unsigned long get_last_login_time(uid_t uid, const char *logname,
    were more standardized. */
 
 void record_login(int pid, const char *ttyname, const char *user, uid_t uid,
-		  const char *host)
+		  const char *host, struct sockaddr_in *addr)
 {
   int fd;
 
-#ifdef HAVE_LASTLOG_H
+#if defined(HAVE_LASTLOG_H) || defined(HAVE_LASTLOG)
   struct lastlog ll;
   char *lastlog;
 #ifdef LASTLOG_IS_DIR
   char lastlogfile[100];
 #endif /* LASTLOG_IS_DIR */
-#endif /* HAVE_LASTLOG_H */
+#endif /* HAVE_LASTLOG_H || HAVE_LASTLOG */
 
 #if defined(HAVE_UTMP_H) && !defined(HAVE_UTMPX_H)
   struct utmp u, u2;
@@ -228,6 +234,12 @@ void record_login(int pid, const char *ttyname, const char *user, uid_t uid,
 #ifdef HAVE_HOST_IN_UTMP
   strncpy(u.ut_host, host, sizeof(u.ut_host));
 #endif /* HAVE_HOST_IN_UTMP */
+#ifdef HAVE_ADDR_IN_UTMP
+  if (addr)
+    memcpy(&u.ut_addr, &addr->sin_addr, sizeof(u.ut_addr));
+  else
+    memset(&u.ut_addr, 0, sizeof(u.ut_addr));
+#endif
 
   /* Figure out the file names. */
 #ifdef _PATH_UTMP
@@ -243,12 +255,15 @@ void record_login(int pid, const char *ttyname, const char *user, uid_t uid,
 #endif
 #endif
   
+#ifdef HAVE_LIBUTIL_LOGIN
+  login(&u);
+#else /* HAVE_LIBUTIL_LOGIN */
   /* Append an entry to wtmp. */
   fd = open(wtmp, O_WRONLY|O_APPEND);
   if (fd >= 0)
     {
       if (write(fd, &u, sizeof(u)) != sizeof(u))
-	log("Could not write %s: %s", wtmp, strerror(errno));
+	log("Could not write %.100s: %.100s", wtmp, strerror(errno));
       close(fd);
     }
 
@@ -264,19 +279,22 @@ void record_login(int pid, const char *ttyname, const char *user, uid_t uid,
 	    {
 	      lseek(fd, offset, 0);
 	      if (write(fd, &u, sizeof(u)) != sizeof(u))
-		log("Could not append to %.100s: %s", utmp, strerror(errno));
+		log("Could not append to %.100s: %.100s", 
+		    utmp, strerror(errno));
 	      break;
 	    }
 	  if (strncmp(u2.ut_line, ttyname + 5, sizeof(u2.ut_line)) == 0)
 	    {
 	      lseek(fd, offset, 0);
 	      if (write(fd, &u, sizeof(u)) != sizeof(u))
-		log("Could not write to %.100s: %s", utmp, strerror(errno));
+		log("Could not write to %.100s: %.100s", 
+		    utmp, strerror(errno));
 	      break;
 	    }
 	}
       close(fd);
     }
+#endif /* HAVE_LIBUTIL_LOGIN */
 #endif /* HAVE_UTMP_H && !HAVE_UTMPX_H */
 
 #ifdef HAVE_UTMPX_H
@@ -301,7 +319,7 @@ void record_login(int pid, const char *ttyname, const char *user, uid_t uid,
       ux.ut_type = DEAD_PROCESS;
     else
       ux.ut_type = USER_PROCESS;
-    gettimeofday(&ux.ut_tv);
+    gettimeofday(&ux.ut_tv, NULL);
     ux.ut_session = pid;
     strncpy(ux.ut_host, host, sizeof(ux.ut_host));
     ux.ut_host[sizeof(ux.ut_host) - 1] = 0;
@@ -312,7 +330,7 @@ void record_login(int pid, const char *ttyname, const char *user, uid_t uid,
   }
 #endif /* HAVE_UTMPX_H */
 
-#ifdef HAVE_LASTLOG_H
+#if defined(HAVE_LASTLOG_H) || defined(HAVE_LASTLOG)
 
 #ifdef _PATH_LASTLOG
   lastlog = _PATH_LASTLOG;
@@ -336,17 +354,18 @@ void record_login(int pid, const char *ttyname, const char *user, uid_t uid,
       strncpy(ll.ll_line, ttyname + 5, sizeof(ll.ll_line));
       strncpy(ll.ll_host, host, sizeof(ll.ll_host));
 #ifdef LASTLOG_IS_DIR
-      sprintf(lastlogfile, "%s/%s", lastlog, user);
+      sprintf(lastlogfile, "%.100s/%.100s", lastlog, user);
       fd = open(lastlogfile, O_WRONLY | O_CREAT, 0644);
       if (fd >= 0)
 	{
 	  if (write(fd, &ll, sizeof(ll)) != sizeof(ll))
-	    log("Could not write %s: %s", lastlogfile, strerror(errno));
+	    log("Could not write %.100s: %.100s", 
+		lastlogfile, strerror(errno));
 	  close(fd);
 	} 
       else 
 	{
-	  log("Could not open %s: %s", lastlogfile, strerror(errno));
+	  log("Could not open %.100s: %.100s", lastlogfile, strerror(errno));
 	}
 #else /* LASTLOG_IS_DIR */
       fd = open(lastlog, O_RDWR);
@@ -354,12 +373,12 @@ void record_login(int pid, const char *ttyname, const char *user, uid_t uid,
 	{
 	  lseek(fd, (off_t)((long)uid * sizeof(ll)), 0);
 	  if (write(fd, &ll, sizeof(ll)) != sizeof(ll))
-	    log("Could not write %s: %s", lastlog, strerror(errno));
+	    log("Could not write %.100s: %.100s", lastlog, strerror(errno));
 	  close(fd);
 	}
 #endif /* LASTLOG_IS_DIR */
     }
-#endif /* HAVE_LASTLOG_H */
+#endif /* HAVE_LASTLOG_H || HAVE_LASTLOG */
 
 #ifdef HAVE_USERSEC_H
 
@@ -367,19 +386,20 @@ void record_login(int pid, const char *ttyname, const char *user, uid_t uid,
     {
       int lasttime = time(NULL);
       if (setuserdb(S_WRITE) < 0)
-	log("setuserdb S_WRITE failed: %s", strerror(errno));
+	log("setuserdb S_WRITE failed: %.100s", strerror(errno));
       if (putuserattr((char *)user, S_LASTTIME, (void *)lasttime, SEC_INT) < 0)
-	log("putuserattr S_LASTTIME failed: %s", strerror(errno));
+	log("putuserattr S_LASTTIME failed: %.100s", strerror(errno));
       if (putuserattr((char *)user, S_LASTTTY, (void *)(ttyname + 5), 
 		      SEC_CHAR) < 0)
-	log("putuserattr S_LASTTTY %.900s failed: %s", 
+	log("putuserattr S_LASTTTY %.900s failed: %.100s", 
 	    ttyname, strerror(errno));
       if (putuserattr((char *)user, S_LASTHOST, (void *)host, SEC_CHAR) < 0)
-	log("putuserattr S_LASTHOST %.900s failed: %s", host, strerror(errno));
+	log("putuserattr S_LASTHOST %.900s failed: %.100s", 
+	    host, strerror(errno));
       if (putuserattr((char *)user, 0, NULL, SEC_COMMIT) < 0)
-	log("putuserattr SEC_COMMIT failed: %s", strerror(errno));
+	log("putuserattr SEC_COMMIT failed: %.100s", strerror(errno));
       if (enduserdb() < 0)
-	log("enduserdb failed: %s", strerror(errno));
+	log("enduserdb failed: %.100s", strerror(errno));
     }
 #endif   
 }
@@ -388,5 +408,11 @@ void record_login(int pid, const char *ttyname, const char *user, uid_t uid,
 
 void record_logout(int pid, const char *ttyname)
 {
-  record_login(pid, ttyname, "", -1, "");
+#ifdef HAVE_LIBUTIL_LOGIN
+  const char *line = ttyname + 5; /* /dev/ttyq8 -> ttyq8 */
+  if (logout(line))
+    logwtmp(line, "", "");
+#else /* HAVE_LIBUTIL_LOGIN */
+  record_login(pid, ttyname, "", -1, "", NULL);
+#endif /* HAVE_LIBUTIL_LOGIN */  
 }

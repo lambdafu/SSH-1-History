@@ -16,8 +16,36 @@ of X11, TCP/IP, and authentication connections.
 */
 
 /*
- * $Id: ssh.c,v 1.9 1995/08/31 09:23:32 ylo Exp $
+ * $Id: ssh.c,v 1.17 1995/09/27 02:48:53 ylo Exp $
  * $Log: ssh.c,v $
+ * Revision 1.17  1995/09/27  02:48:53  ylo
+ * 	Added SOCKS support.
+ *
+ * Revision 1.16  1995/09/27  02:16:10  ylo
+ * 	Print "rsh" command line if -v.
+ *
+ * Revision 1.15  1995/09/25  00:01:16  ylo
+ * 	Moved client main loop to clientloop.c.
+ *
+ * Revision 1.14  1995/09/22  22:23:55  ylo
+ * 	Changed argument list of ssh_login.
+ *
+ * Revision 1.13  1995/09/21  17:13:47  ylo
+ * 	Don't print "Connection closed" if -q.
+ *
+ * Revision 1.12  1995/09/13  12:03:37  ylo
+ * 	Fixed rhosts authentication.
+ * 	Moved channel_prepare_select to the correct location (should
+ * 	fix channel closes being reported only after a keypress).
+ *
+ * Revision 1.11  1995/09/10  22:47:34  ylo
+ * 	Added uidswap stuff (fixes security problems).  Changed to use
+ * 	original_real_uid instead of getuid in various places.
+ * 	#ifdef'd some SIGWINCH stuff.
+ *
+ * Revision 1.10  1995/09/09  21:26:45  ylo
+ * /m/shadows/u2/users/ylo/ssh/README
+ *
  * Revision 1.9  1995/08/31  09:23:32  ylo
  * 	Copy struct pw.
  *
@@ -56,6 +84,7 @@ of X11, TCP/IP, and authentication connections.
 #include "buffer.h"
 #include "authfd.h"
 #include "readconf.h"
+#include "uidswap.h"
 
 /* Random number generator state.  This is initialized in ssh_login, and
    left initialized.  This is used both by the packet module and by various
@@ -92,11 +121,13 @@ Options options;
    in a configuration file. */
 char *host;
 
+#ifdef SIGWINCH
 /* Flag to indicate that we have received a window change signal which has
    not yet been processed.  This will cause a message indicating the new
    window size to be sent to the server a little later.  This is volatile
    because this is updated in a signal handler. */
 volatile int received_window_change_signal = 0;
+#endif /* SIGWINCH */
 
 /* Value of argv[0] (set in the main program). */
 char *av0;
@@ -107,143 +138,6 @@ int host_private_key_loaded = 0;
 /* Host private key. */
 RSAPrivateKey host_private_key;
 
-
-/* This function implements the interactive session, and is defined in this
-   file. */
-int do_session(int have_pty, int escape_char);
-
-/* Terminal modes, as saved by enter_raw_mode. */
-#ifdef USING_TERMIOS
-struct termios saved_tio;
-#endif
-#ifdef USING_SGTTY
-struct sgttyb saved_tio;
-#endif
-
-/* Flag indicating whether we are in raw mode.  This is used by enter_raw_mode
-   and leave_raw_mode. */
-int in_raw_mode = 0;
-
-/* Flag indicating whether the user\'s terminal is in non-blocking mode. */
-int in_non_blocking_mode = 0;
-
-/* Puts the user\'s terminal in raw mode. */
-
-void enter_raw_mode()
-{
-#ifdef USING_TERMIOS
-  struct termios tio;
-
-  if (tcgetattr(fileno(stdin), &tio) < 0)
-    perror("tcgetattr");
-  saved_tio = tio;
-  tio.c_iflag |= IGNPAR;
-  tio.c_iflag &= ~(ISTRIP|INLCR|IGNCR|ICRNL|IXON|IXANY|IXOFF);
-  tio.c_lflag &= ~(ISIG|ICANON|ECHO|ECHOE|ECHOK|ECHONL);
-#ifdef IEXTEN
-  tio.c_lflag &= ~IEXTEN;
-#endif /* IEXTEN */
-  tio.c_oflag &= ~OPOST;
-  tio.c_cc[VMIN] = 1;
-  tio.c_cc[VTIME] = 0;
-  if (tcsetattr(fileno(stdin), TCSADRAIN, &tio) < 0)
-    perror("tcsetattr");
-  in_raw_mode = 1;
-#endif /* USING_TERMIOS */
-#ifdef USING_SGTTY
-  struct sgttyb tio;
-
-  if (ioctl(fileno(stdin), TIOCGETP, &tio) < 0)
-    perror("ioctl(stdin, TIOCGETP, ...)");
-  saved_tio = tio;
-  tio.sg_flags &= ~(CBREAK | ECHO | CRMOD | LCASE | TANDEM);
-  tio.sg_flags |= (RAW | ANYP);
-  if (ioctl(fileno(stdin), TIOCSETP, &tio) < 0)
-    perror("ioctl(stdin, TIOCSETP, ...)");
-  in_raw_mode = 1;
-#endif /* USING_SGTTY */
-}  
-
-/* Returns the user\'s terminal to normal mode if it had been put in raw 
-   mode. */
-
-void leave_raw_mode()
-{
-  if (!in_raw_mode)
-    return;
-  in_raw_mode = 0;
-#ifdef USING_TERMIOS
-  if (tcsetattr(fileno(stdin), TCSADRAIN, &saved_tio) < 0)
-    perror("tcsetattr");
-#endif /* USING_TERMIOS */
-#ifdef USING_SGTTY
-  if (ioctl(fileno(stdin), TIOCSETP, &saved_tio) < 0)
-    perror("ioctl(stdin, TIOCSETP, ...)");
-#endif /* USING_SGTTY */
-}
-
-/* Puts stdin terminal in non-blocking mode. */
-
-void enter_non_blocking()
-{
-  in_non_blocking_mode = 1;
-#if defined(O_NONBLOCK) && !defined(O_NONBLOCK_BROKEN)
-  (void)fcntl(fileno(stdin), F_SETFL, O_NONBLOCK);
-#else /* O_NONBLOCK */
-  (void)fcntl(fileno(stdin), F_SETFL, O_NDELAY);
-#endif /* O_NONBLOCK */  
-}
-
-/* Restores stdin to blocking mode. */
-
-void leave_non_blocking()
-{
-  (void)fcntl(fileno(stdin), F_SETFL, 0);
-  in_non_blocking_mode = 0;
-}
-
-/* Signal handler for the window change signal (SIGWINCH).  This just
-   sets a flag indicating that the window has changed. */
-
-RETSIGTYPE window_change_handler(int sig)
-{
-  received_window_change_signal = 1;
-  signal(SIGWINCH, window_change_handler);
-}
-
-/* Signal handler for signals that cause the program to terminate.  These
-   signals must be trapped to restore terminal modes. */
-
-RETSIGTYPE signal_handler(int sig)
-{
-  if (in_raw_mode)
-    leave_raw_mode();
-  if (in_non_blocking_mode)
-    leave_non_blocking();
-  channel_stop_listening();
-  packet_close();
-  fatal("Killed by signal %d.", sig);
-}
-
-/* Function to display an error message and exit.  This is in this file because
-   this needs to restore terminal modes before exiting.  See log-client.c
-   for other related functions. */
-
-void fatal(const char *fmt, ...)
-{
-  va_list args;
-  if (in_non_blocking_mode)
-    leave_non_blocking();
-  if (in_raw_mode)
-    leave_raw_mode();
-  va_start(args, fmt);
-  vfprintf(stderr, fmt, args);
-  fprintf(stderr, "\n");
-  va_end(args);
-  channel_stop_listening();
-  packet_close();
-  exit(255);
-}
 
 /* Prints a help message to the user.  This function never returns. */
 
@@ -269,6 +163,7 @@ void usage()
   fprintf(stderr, "  -R listen-port:host:port   Forward remote port to local address\n");
   fprintf(stderr, "              These cause %s to listen for connections on a port, and\n", av0);
   fprintf(stderr, "              forward them to the other side by connecting to host:port.\n");
+  fprintf(stderr, "  -C          Enable compression.\n");
   fprintf(stderr, "  -o 'option' Process the option as if it was read from a configuration file.\n");
   exit(1);
 }
@@ -298,6 +193,16 @@ void rsh_connect(char *host, char *user, Buffer *command)
       args[i++] = buffer_ptr(command);
     }
   args[i++] = NULL;
+  if (debug_flag)
+    {
+      for (i = 0; args[i]; i++)
+	{
+	  if (i != 0)
+	    fprintf(stderr, " ");
+	  fprintf(stderr, "%s", args[i]);
+	}
+      fprintf(stderr, "\n");
+    }
   execv(RSH_PATH, args);
   perror(RSH_PATH);
   exit(1);
@@ -310,16 +215,43 @@ void rsh_connect(char *host, char *user, Buffer *command)
 
 int main(int ac, char **av)
 {
-  int i, opt, optind, type, exit_status, sock, fwd_port, fwd_host_port, authfd;
+  int i, opt, optind, type, exit_status, ok, fwd_port, fwd_host_port, authfd;
   char *optarg, *cp, buf[256];
   Buffer command;
   struct winsize ws;
   struct stat st;
   struct passwd *pw, pwcopy;
   int interactive = 0, dummy;
+  uid_t original_real_uid;
+  uid_t original_effective_uid;
+
+  /* Save the original real uid.  It will be needed later (uid-swapping may
+     clobber the real uid).  */
+  original_real_uid = getuid();
+  original_effective_uid = geteuid();
+
+  /* Use uid-swapping to give up root privileges for the duration of option
+     processing.  We will re-instantiate the rights when we are ready to
+     create the privileged port, and will permanently drop them when the
+     port has been created (actually, when the connection has been made, as
+     we may need to create the port several times). */
+  temporarily_use_uid(original_real_uid);
+
+#ifdef HAVE_UMASK
+  /* Set our umask to something reasonable, as some files are created with 
+     the default umask.  This will make them world-readable but writable 
+     only by the owner, which is ok for all files for which we don't set
+     the modes explicitly. */
+  umask(022);
+#endif /* HAVE_UMASK */
   
   /* Save our own name. */
   av0 = av[0];
+
+#ifdef SOCKS
+  /* Initialize SOCKS (the firewall traversal library). */
+  SOCKSinit(av0);
+#endif /* SOCKS */
 
   /* Set RSA (actually gmp) memory allocation functions. */
   rsa_set_mp_memory_allocation();
@@ -329,6 +261,15 @@ int main(int ac, char **av)
 
   /* Parse command-line arguments. */
   host = NULL;
+
+  /* If program name is not one of the standard names, use it as host name. */
+  if (strchr(av0, '/'))
+    cp = strrchr(av0, '/') + 1;
+  else
+    cp = av0;
+  if (strcmp(cp, "rsh") != 0 && strcmp(cp, "ssh") != 0 &&
+      strcmp(cp, "rlogin") != 0 && strcmp(cp, "slogin") != 0)
+    host = cp;
   
   for (optind = 1; optind < ac; optind++)
     {
@@ -402,7 +343,7 @@ int main(int ac, char **av)
 #ifdef RSAREF
 	  fprintf(stderr, "Compiled with RSAREF.\n");
 #else /* RSAREF */
-	  fprintf(stderr, "International version.  Does not use RSAREF.\n");
+	  fprintf(stderr, "Standard version.  Does not use RSAREF.\n");
 #endif /* RSAREF */
 	  break;
 
@@ -457,12 +398,6 @@ int main(int ac, char **av)
 	      usage();
 	      /*NOTREACHED*/
 	    }
-	  if (fwd_port < 1024 && getuid() != 0)
-	    {
-	      fprintf(stderr, 
-		      "Privileged ports can only be forwarded by root.\n");
-	      exit(1);
-	    }
 	  add_remote_forward(&options, fwd_port, buf, fwd_host_port);
 	  break;
 
@@ -474,13 +409,17 @@ int main(int ac, char **av)
 	      usage();
 	      /*NOTREACHED*/
 	    }
-	  if (fwd_port < 1024 && getuid() != 0)
+	  if (fwd_port < 1024 && original_real_uid != 0)
 	    {
 	      fprintf(stderr, 
 		      "Privileged ports can only be forwarded by root.\n");
 	      exit(1);
 	    }
 	  add_local_forward(&options, fwd_port, buf, fwd_host_port);
+	  break;
+
+	case 'C':
+	  options.compression = 1;
 	  break;
 
 	case 'o':
@@ -537,7 +476,7 @@ int main(int ac, char **av)
     }
 
   /* Get user data. */
-  pw = getpwuid(getuid());
+  pw = getpwuid(original_real_uid);
   if (!pw)
     {
       fprintf(stderr, "You don't exist, go away!\n");
@@ -574,7 +513,7 @@ int main(int ac, char **av)
     host = options.hostname;
 
   /* Disable rhosts authentication if not running as root. */
-  if (geteuid() != 0)
+  if (original_effective_uid != 0)
     {
       options.rhosts_authentication = 0;
       options.rhosts_rsa_authentication = 0;
@@ -584,24 +523,35 @@ int main(int ac, char **av)
      else).  Note that we must release privileges first. */
   if (options.use_rsh)
     {
-      /* Drop extra privileges before executing rsh. */
-      setgid(getgid());
-      setuid(getuid());
+      /* Restore our superuser privileges.  This must be done before
+         permanently setting the uid. */
+      restore_uid();
+
+      /* Switch to the original uid permanently. */
+      permanently_set_uid(original_real_uid);
+
+      /* Execute rsh. */
       rsh_connect(host, options.user, &command);
       fatal("rsh_connect returned");
     }
 
+  /* Restore our superuser privileges. */
+  restore_uid();
+
   /* Open a connection to the remote host.  This needs root privileges if
-     rhosts_authentication is true. */
-  sock = ssh_connect(host, options.port, 
-		     !options.rhosts_authentication &&
-		     !options.rhosts_rsa_authentication);
+     rhosts_authentication is true.  Note that the random_state is not
+     yet used by this call, although a pointer to it is stored, and thus it
+     need not be initialized. */
+  ok = ssh_connect(host, options.port, options.connection_attempts,
+		   !options.rhosts_authentication &&
+		   !options.rhosts_rsa_authentication,
+		   original_real_uid, options.proxy_command, &random_state);
 
   /* If we successfully made the connection, load the host private key in
      case we will need it later for combined rsa-rhosts authentication. 
      This must be done before releasing extra privileges, because the file
      is only readable by root. */
-  if (sock != -1)
+  if (ok)
     {
       if (load_private_key(HOST_KEY_FILE, "", &host_private_key, NULL))
 	host_private_key_loaded = 1;
@@ -609,10 +559,9 @@ int main(int ac, char **av)
 
   /* Get rid of any extra privileges that we may have.  We will no longer need
      them.  Also, extra privileges could make it very hard to read identity
-     files and other non-world-readable files from the user\'s home directory
+     files and other non-world-readable files from the user's home directory
      if it happens to be on a NFS volume where root is mapped to nobody. */
-  setgid(getgid());
-  setuid(getuid());
+  permanently_set_uid(original_real_uid);
 
   /* Now that we are back to our own permissions, create ~/.ssh directory
      if it doesn\'t already exist. */
@@ -622,7 +571,7 @@ int main(int ac, char **av)
       error("Could not create directory '%.200s'.", buf);
 
   /* Check if the connection failed, and try "rsh" if appropriate. */
-  if (sock == -1)
+  if (!ok)
     {
       if (options.port != 0)
 	log("Secure connection to %.100s on port %d refused%s.", 
@@ -640,27 +589,21 @@ int main(int ac, char **av)
       exit(1);
     }
 
-  /* Expand ~ in options.identity_files.   Warning: tilde_expand_filename
-     corrupts pw. */
+  /* Expand ~ in options.identity_files. */
   for (i = 0; i < options.num_identity_files; i++)
     options.identity_files[i] = 
-      tilde_expand_filename(options.identity_files[i], getuid());
+      tilde_expand_filename(options.identity_files[i], original_real_uid);
 
   /* Expand ~ in known host file names. */
   options.system_hostfile = tilde_expand_filename(options.system_hostfile,
-						  getuid());
+						  original_real_uid);
   options.user_hostfile = tilde_expand_filename(options.user_hostfile,
-						getuid());
+						original_real_uid);
 
   /* Log into the remote system.  This never returns if the login fails. 
      Note: this initializes the random state, and leaves it initialized. */
   ssh_login(&random_state, host_private_key_loaded, &host_private_key, 
-	    sock, host, options.user, options.num_identity_files,
-	    options.identity_files,
-	    options.rhosts_authentication, options.rhosts_rsa_authentication,
-	    options.rsa_authentication,
-	    options.password_authentication, options.cipher,
-	    options.system_hostfile, options.user_hostfile);
+	    host, &options, original_real_uid);
 
   /* We no longer need the host private key.  Clear it now. */
   if (host_private_key_loaded)
@@ -671,12 +614,32 @@ int main(int ac, char **av)
     {
       int ret = fork();
       if (ret == -1)
-	fatal("fork failed: %s", strerror(errno));
+	fatal("fork failed: %.100s", strerror(errno));
       if (ret != 0)
 	exit(0);
 #ifdef HAVE_SETSID
       setsid();
 #endif /* HAVE_SETSID */
+    }
+
+  /* Enable compression if requested. */
+  if (options.compression)
+    {
+      debug("Requesting compression at level %d.", options.compression_level);
+
+      if (options.compression_level < 1 || options.compression_level > 9)
+	fatal("Compression level must be from 1 (fast) to 9 (slow, best).");
+
+      /* Send the request. */
+      packet_start(SSH_CMSG_REQUEST_COMPRESSION);
+      packet_put_int(options.compression_level);
+      packet_send();
+      packet_write_wait();
+      type = packet_read();
+      if (type == SSH_SMSG_SUCCESS)
+	packet_start_compression(options.compression_level);
+      else
+	log("Warning: Remote host refused compression.");
     }
 
   /* Allocate a pseudo tty if appropriate. */
@@ -722,54 +685,49 @@ int main(int ac, char **av)
     {
       char line[512], proto[512], data[512];
       FILE *f;
-      int forwarded = 0;
+      int forwarded = 0, got_data = 0, i;
 
+#ifdef XAUTH_PATH
       /* Try to get Xauthority information for the display. */
-      sprintf(line, "%s list %.200s 2>/dev/null", 
+      sprintf(line, "%.100s list %.200s 2>/dev/null", 
 	      XAUTH_PATH, getenv("DISPLAY"));
       f = popen(line, "r");
       if (f && fgets(line, sizeof(line), f) && 
 	  sscanf(line, "%*s %s %s", proto, data) == 2)
-	{
-	  /* Got Reasonable information.  Request forwarding with
-	     authentication spoofing. */
-	  debug("Requesting X11 connection forwarding with authentication spoofing.");
-	  x11_request_forwarding_with_spoofing(&random_state, proto, data);
-
-	  /* Read response from the server. */
-	  type = packet_read();
-	  if (type == SSH_SMSG_SUCCESS)
-	    {
-	      forwarded = 1;
-	      interactive = 1;
-	    }
-
-	  else
-	    log("Warning: Remote host denied X11 authentication spoofing.");
-	}
+	got_data = 1;
       if (f)
 	pclose(f);
-
-      if (!forwarded)
+#endif /* XAUTH_PATH */
+      /* If we didn't get authentication data, just make up some data.  The
+	 forwarding code will check the validity of the response anyway, and
+	 substitute this data.  The X11 server, however, will ignore this
+	 fake data and use whatever authentication mechanisms it was using
+	 otherwise for the local connection. */
+      if (!got_data)
 	{
-	  /* We were unable to obtain Xauthority data.  Just forward the
-	     connection, but only use a unix domain socket for security
-	     reasons.  The user should have "xhost localhost" done (or for
-	     whatever host the user is running the client from). */
-	  debug("Requesting X11 connection forwarding for unix domain socket.");
-	  x11_request_forwarding();
-
-	  /* Read response from the server. */
-	  type = packet_read();
-	  if (type == SSH_SMSG_SUCCESS)
-	    interactive = 1;
-	  else
-	    log("Warning: Remote host denied X11 forwarding.");
+	  strcpy(proto, "MIT-MAGIC-COOKIE-1");
+	  for (i = 0; i < 16; i++)
+	    sprintf(data + 2 * i, "%02x", random_get_byte(&random_state));
 	}
+
+      /* Got local authentication reasonable information.  Request forwarding
+	 with authentication spoofing. */
+      debug("Requesting X11 forwarding with authentication spoofing.");
+      x11_request_forwarding_with_spoofing(&random_state, proto, data);
+
+      /* Read response from the server. */
+      type = packet_read();
+      if (type == SSH_SMSG_SUCCESS)
+	{
+	  forwarded = 1;
+	  interactive = 1;
+	}
+      else
+	log("Warning: Remote host denied X11 forwarding.");
     }
 
   /* Tell the packet module whether this is an interactive session. */
-  packet_set_interactive(interactive);
+  packet_set_interactive(interactive, options.keepalives);
 
   /* Clear agent forwarding if we don\'t have an agent. */
   authfd = ssh_get_authentication_fd();
@@ -833,610 +791,12 @@ int main(int ac, char **av)
       packet_write_wait();
     }
 
-  /* Set signal handlers to restore non-blocking mode.  */
-  signal(SIGINT, signal_handler);
-  signal(SIGQUIT, signal_handler);
-  signal(SIGTERM, signal_handler);
-
-  /* Enter the session. */
-  if (tty_flag)
-    {
-      /* We have a tty. */
-#ifdef SIGWINCH
-      signal(SIGWINCH, window_change_handler);
-#endif /* SIGWINCH */
-      exit_status = do_session(1, options.escape_char);
-#ifdef SIGWINCH
-      signal(SIGWINCH, SIG_DFL);
-#endif /* SIGWINCH */
-    }
-  else
-    {
-      /* There is no tty. */
-      exit_status = do_session(0, -1);
-    }
+  /* Enter the interactive session. */
+  exit_status = client_loop(tty_flag, tty_flag ? options.escape_char : -1);
 
   /* Close the connection to the remote host. */
   packet_close();
   
   /* Exit with the status returned by the program on the remote side. */
   exit(exit_status);
-}
-
-/* Returns current time in seconds from Jan 1, 1970 with the maximum available
-   resolution. */
-
-double get_current_time()
-{
-#ifdef HAVE_GETTIMEOFDAY
-  struct timeval tv;
-  gettimeofday(&tv, NULL);
-  return (double)tv.tv_sec + (double)tv.tv_usec / 1000000.0;
-#else /* HAVE_GETTIMEOFDAY */
-  return (double)time(NULL);
-#endif /* HAVE_GETTIMEOFDAY */
-}
-
-/* Implements the interactive session with the server.  This is called
-   after the user has been authenticated, and a command has been
-   started on the remote host.  If escape_char != -1, it is the character
-   used as an escape character for terminating or suspending the
-   session. */
-
-int do_session(int have_pty, int escape_char)
-{
-  int escape_pending = 0;  /* Last character was the escape character */
-  int last_was_cr = 1; /* Last character was a newline. */
-  int exit_status = -1; /* Used to store the exit status of the command. */
-  int stdin_eof = 0; /* EOF has been encountered on standard error. */
-  Buffer stdin_buffer;  /* Buffer for stdin data. */
-  Buffer stdout_buffer; /* Buffer for stdout data. */
-  Buffer stderr_buffer; /* Buffer for stderr data. */
-  const unsigned int buffer_high = 64*1024; /* Soft max buffer size. */
-  int max_fd; /* Maximum file descriptor number in select(). */
-  int connection = packet_get_connection(); /* Connection to server. */
-  int type, len;
-  char buf[32768];
-  char *data;
-  unsigned int data_len;
-  unsigned long stdin_bytes = 0, stdout_bytes = 0, stderr_bytes = 0;
-  double start_time, total_time;
-
-  debug("Entering interactive session.");
-
-  start_time = get_current_time();
-
-  /* Initialize maximum file descriptor. */
-  max_fd = connection;
-
-  /* Enter raw mode if have a pseudo terminal. */
-  if (have_pty)
-    enter_raw_mode();
-
-  /* Initialize buffers. */
-  buffer_init(&stdin_buffer);
-  buffer_init(&stdout_buffer);
-  buffer_init(&stderr_buffer);
-
-  /* If standard input is to be "redirected from /dev/null", we simply
-     mark that we have seen an EOF and send an EOF message to the server.
-     Otherwise, we try to read a single character; it appears that for some
-     files, such /dev/null, select() never wakes up for read for this
-     descriptor, which means that we never get EOF.  This way we will get
-     the EOF if stdin comes from /dev/null or similar. */
-  if (stdin_null_flag)
-    {
-      /* Fake EOF on stdin. */
-      debug("Sending eof.");
-      stdin_eof = 1;
-      packet_start(SSH_CMSG_EOF);
-      packet_send();
-    }
-  else
-    {
-      /* Enter non-blocking mode for stdin. */
-      enter_non_blocking();
-
-      /* Check for immediate EOF on stdin. */
-      len = read(fileno(stdin), buf, 1);
-      if (len == 0)
-	{
-	  /* EOF.  Record that we have seen it and send EOF to server. */
-	  debug("Sending eof.");
-	  stdin_eof = 1;
-	  packet_start(SSH_CMSG_EOF);
-	  packet_send();
-	}
-      else
-	if (len > 0)
-	  {
-	    /* Got data.  We must store the data in the buffer, and also
-	       process it as an escape character if appropriate. */
-	    if ((unsigned char)buf[0] == escape_char)
-	      escape_pending = 1;
-	    else
-	      {
-		buffer_append(&stdin_buffer, buf, 1);
-		stdin_bytes += 1;
-	      }
-	  }
-      
-      /* Leave non-blocking mode. */
-      leave_non_blocking();
-    }
-
-  /* We stay in this loop until one of the following happens:
-       - we receive SSH_SMSG_EXITSTATUS
-       - the user types <newline>~. (and we have escape character)
-       - server closes the connection
-       - an error reported via fatal() causes the program to terminate
-       - select fails.
-
-     The loop is organized as follows:
-       1. Process any buffered packets from the server.
-       2. Send buffered stdin data to the server.
-       3. Send channel data to the server.
-       4. Send possible window change message to the server.
-       5. Initialize select masks.
-       6. Sleep in select().
-       7. Do operations for channels.
-       8. Read input from the server (store in buffer).
-       9. Read input from stdin (store in buffer).
-       10. Write buffered output to stdout.
-       11. Write buffered output to stderr.
-       12. Send buffered packet data to the server.
-     After the loop there is cleanup and termination code. */
-
-  for (;;)
-    {
-      fd_set readset, writeset;
-
-      /* Process any buffered packets from the server. */
-      while ((type = packet_read_poll()) != SSH_MSG_NONE)
-	{
-	  switch (type)
-	    {
-
-	    case SSH_SMSG_STDOUT_DATA:
-	      data = packet_get_string(&data_len);
-	      buffer_append(&stdout_buffer, data, data_len);
-	      stdout_bytes += data_len;
-	      memset(data, 0, data_len);
-	      xfree(data);
-	      break;
-
-	    case SSH_SMSG_STDERR_DATA:
-	      data = packet_get_string(&data_len);
-	      buffer_append(&stderr_buffer, data, data_len);
-	      stdout_bytes += data_len;
-	      memset(data, 0, data_len);
-	      xfree(data);
-	      break;
-
-	    case SSH_SMSG_EXITSTATUS:
-	      exit_status = packet_get_int();
-	      /* Acknowledge the exit. */
-	      packet_start(SSH_CMSG_EXIT_CONFIRMATION);
-	      packet_send();
-	      /* Must wait for packet to be sent since we are exiting the
-		 loop. */
-	      packet_write_wait();
-	      /* Go close the connection. */
-	      goto quit;
-
-	    case SSH_SMSG_X11_OPEN:
-	      x11_input_open();
-	      break;
-
-	    case SSH_MSG_PORT_OPEN:
-	      channel_input_port_open();
-	      break;
-
-	    case SSH_SMSG_AGENT_OPEN:
-	      auth_input_open_request();
-	      break;
-
-	    case SSH_MSG_CHANNEL_OPEN_CONFIRMATION:
-	      channel_input_open_confirmation();
-	      break;
-
-	    case SSH_MSG_CHANNEL_OPEN_FAILURE:
-	      channel_input_open_failure();
-	      break;
-
-	    case SSH_MSG_CHANNEL_DATA:
-	      channel_input_data();
-	      break;
-
-	    case SSH_MSG_CHANNEL_CLOSE:
-	      channel_input_close();
-	      break;
-
-	    case SSH_MSG_CHANNEL_CLOSE_CONFIRMATION:
-	      channel_input_close_confirmation();
-	      break;
-
-	    default:
-	      /* Any unknown packets received during the actual session
-		 cause the session to terminate.  This is intended to make
-		 debugging easier since no confirmations are sent.  Any
-		 compatible protocol extensions must be negotiated during
-		 the preparatory phase. */
-	      packet_disconnect("Protocol error during session: type %d",
-				type);
-	    }
-	}
-
-      /* Send buffered stdin data to the server. */
-      while (buffer_len(&stdin_buffer) > 0 && 
-	     packet_not_very_much_data_to_write())
-	{
-	  len = buffer_len(&stdin_buffer);
-	  if (len > 32768)
-	    len = 32768;  /* Keep the packets at reasonable size. */
-	  packet_start(SSH_CMSG_STDIN_DATA);
-	  packet_put_string(buffer_ptr(&stdin_buffer), len);
-	  packet_send();
-	  buffer_consume(&stdin_buffer, len);
-	  /* If we have a pending EOF, send it now. */
-	  if (stdin_eof && buffer_len(&stdin_buffer) == 0)
-	    {
-	      packet_start(SSH_CMSG_EOF);
-	      packet_send();
-	    }
-	}
-
-      /* Send channel data to the server. */
-      if (packet_not_very_much_data_to_write())
-	channel_output_poll();
-
-#ifdef SIGWINCH
-      /* Send possible window change message to the server. */
-      if (received_window_change_signal)
-	{
-	  struct winsize ws;
-	  /* Clear the window change indicator. */
-	  received_window_change_signal = 0;
-	  /* Read new window size. */
-	  if (ioctl(fileno(stdin), TIOCGWINSZ, &ws) >= 0)
-	    {
-	      /* Successful, send the packet now. */
-	      packet_start(SSH_CMSG_WINDOW_SIZE);
-	      packet_put_int(ws.ws_row);
-	      packet_put_int(ws.ws_col);
-	      packet_put_int(ws.ws_xpixel);
-	      packet_put_int(ws.ws_ypixel);
-	      packet_send();
-	    }
-	}
-#endif /* SIGWINCH */
-	    
-      /* Initialize select masks. */
-      FD_ZERO(&readset);
-
-      /* Read from the connection, unless our buffers are full. */
-      if (buffer_len(&stdout_buffer) < buffer_high &&
-	  buffer_len(&stderr_buffer) < buffer_high &&
-	  channel_not_very_much_buffered_data())
-	FD_SET(connection, &readset);
-
-      /* Read from stdin, unless we have seen EOF or have very much buffered
-	 data to send to the server. */
-      if (!stdin_eof && packet_not_very_much_data_to_write())
-	FD_SET(fileno(stdin), &readset);
-
-      FD_ZERO(&writeset);
-
-      /* Select server connection if have data to write to the server. */
-      if (packet_have_data_to_write())
-	FD_SET(connection, &writeset);
-
-      /* Select stdout if have data in buffer. */
-      if (buffer_len(&stdout_buffer) > 0)
-	FD_SET(fileno(stdout), &writeset);
-
-      /* Select stderr if have data in buffer. */
-      if (buffer_len(&stderr_buffer) > 0)
-	FD_SET(fileno(stderr), &writeset);
-      
-      /* Add any selections by the channel mechanism. */
-      channel_prepare_select(&readset, &writeset);
-
-      /* Update maximum file descriptor number, if appropriate. */
-      if (channel_max_fd() > max_fd)
-	max_fd = channel_max_fd();
-
-      /* Wait for something to happen.  This will suspend the process until
-	 some selected descriptor can be read, written, or has some other
-	 event pending.  Note: if you want to implement SSH_MSG_IGNORE
-	 messages to fool traffic analysis, this might be the place to do
-	 it: just have a random timeout for the select, and send a random
-	 SSH_MSG_IGNORE packet when the timeout expires. */
-      if (select(max_fd + 1, &readset, &writeset, NULL, NULL) < 0)
-	{
-	  if (errno == EINTR)
-	    continue;
-	  /* Note: we might still have data in the buffers. */
-	  sprintf(buf, "select: %s\r\n", strerror(errno));
-	  buffer_append(&stderr_buffer, buf, strlen(buf));
-	  stderr_bytes += strlen(buf);
-	  goto quit;
-	}
-
-      /* Do channel operations. */
-      channel_after_select(&readset, &writeset);
-
-      /* Read input from the server, and add any such data to the buffer of the
-	 packet subsystem. */
-      if (FD_ISSET(connection, &readset))
-	{
-	  /* Read as much as possible. */
-	  len = read(connection, buf, sizeof(buf));
-	  if (len == 0)
-	    { 
-	      /* Received EOF.  The remote host has closed the connection. */
-	      sprintf(buf, "Connection to %.300s closed by remote host.\r\n",
-		      host);
-	      buffer_append(&stderr_buffer, buf, strlen(buf));
-	      stderr_bytes += strlen(buf);
-	      goto quit;
-	    }
-	  if (len < 0)
-	    {
-	      /* An error has encountered.  Perhaps there is a network
-		 problem. */
-	      sprintf(buf, "Read from remote host %.300s: %s\r\n", 
-		      host, strerror(errno));
-	      buffer_append(&stderr_buffer, buf, strlen(buf));
-	      stderr_bytes += strlen(buf);
-	      goto quit;
-	    }
-	  packet_process_incoming(buf, len);
-	}
-
-      /* Read input from stdin. */
-      if (FD_ISSET(fileno(stdin), &readset))
-	{
-	  /* Read as much as possible. */
-	  len = read(fileno(stdin), buf, sizeof(buf));
-	  if (len <= 0)
-	    {
-	      /* Received EOF or error.  They are treated similarly,
-		 except that an error message is printed if it was
-		 an error condition. */
-	      if (len < 0)
-		{
-		  sprintf(buf, "read: %s\r\n", strerror(errno));
-		  buffer_append(&stderr_buffer, buf, strlen(buf));
-		  stderr_bytes += strlen(buf);
-		}
-	      /* Mark that we have seen EOF. */
-	      stdin_eof = 1;
-	      /* Send an EOF message to the server unless there is data
-		 in the buffer.  If there is data in the buffer, no message
-		 will be sent now.  Code elsewhere will send the EOF
-		 when the buffer becomes empty if stdin_eof is set. */
-	      if (buffer_len(&stdin_buffer) == 0)
-		{
-		  packet_start(SSH_CMSG_EOF);
-		  packet_send();
-		}
-	    }
-	  else
-	    if (escape_char == -1)
-	      {
-		/* Normal successful read, and no escape character.  Just 
-		   append the data to buffer. */
-		buffer_append(&stdin_buffer, buf, len);
-		stdin_bytes += len;
-	      }
-	    else
-	      {
-		/* Normal, successful read.  But we have an escape character
-		   and have to process the characters one by one. */
-		unsigned int i;
-		for (i = 0; i < len; i++)
-		  {
-		    unsigned char ch;
-		    /* Get one character at a time. */
-		    ch = buf[i];
-
-		    if (escape_pending)
-		      {
-			/* We have previously seen an escape character. */
-			/* Clear the flag now. */
-			escape_pending = 0;
-			/* Process the escaped character. */
-			if (ch == '.')
-			  {
-			    /* Terminate the connection. */
-			    sprintf(buf, "%c.\r\n", escape_char);
-			    buffer_append(&stderr_buffer, buf, strlen(buf));
-			    stderr_bytes += strlen(buf);
-			    goto quit;
-			  }
-			else
-			  if (ch == 'Z' - 64)
-			    {
-			      /* Suspend the program. */
-			      /* Print a message to that effect to the user. */
-			      sprintf(buf, "%c^Z\r\n", escape_char);
-			      buffer_append(&stderr_buffer, buf, strlen(buf));
-			      stderr_bytes += strlen(buf);
-
-			      /* Flush stdout and stderr buffers. */
-			      if (buffer_len(&stdout_buffer) > 0)
-				write(fileno(stdout), 
-				      buffer_ptr(&stdout_buffer), 
-				      buffer_len(&stdout_buffer));
-			      if (buffer_len(&stderr_buffer) > 0)
-				write(fileno(stderr), 
-				      buffer_ptr(&stderr_buffer), 
-				      buffer_len(&stderr_buffer));
-			      /* Leave raw mode. */
-			      leave_raw_mode();
-			      /* Free (and clear) the buffer to reduce the
-				 amount of data that gets written to swap. */
-			      buffer_free(&stdin_buffer);
-			      buffer_free(&stdout_buffer);
-			      buffer_free(&stderr_buffer);
-			      memset(buf, 0, sizeof(buf));
-			      /* Send the suspend signal to the program
-				 itself. */
-			      kill(getpid(), SIGTSTP);
-			      /* OK, we have been continued by the user. 
-			         Reinitialize buffers. */
-			      buffer_init(&stdin_buffer);
-			      buffer_init(&stdout_buffer);
-			      buffer_init(&stderr_buffer);
-			      /* Re-enter raw mode. */
-			      enter_raw_mode();
-			      continue;
-			    }
-			  else
-			    if (ch != escape_char)
-			      {
-				/* Escape character followed by non-special
-				   character.  Append both to the input
-				   buffer. */
-				buf[0] = escape_char;
-				buf[1] = ch;
-				buffer_append(&stdin_buffer, buf, 2);
-				stdin_bytes += 2;
-				continue;
-			      }
-			/* Note that escape character typed twice falls through
-			   here; the latter gets processed as a normal
-			   character below. */
-		      }
-		    else
-		      {
-			/* The previous character was not an escape char. 
-			   Check if this is an escape. */
-			if (last_was_cr && ch == escape_char)
-			  {
-			    /* It is. Set the flag and continue to next
-			       character. */
-			    escape_pending = 1;
-			    continue;
-			  }
-		      }
-		    /* Normal character.  Record whether it was a newline,
-		       and append it to the buffer. */
-		    last_was_cr = (ch == '\r' || ch == '\n');
-		    buf[0] = ch;
-		    buffer_append(&stdin_buffer, buf, 1);
-		    stdin_bytes += 1;
-		    continue;
-		  }
-	      }
-	}
-
-      /* Write buffered output to stdout. */
-      if (FD_ISSET(fileno(stdout), &writeset))
-	{
-	  /* Write as much data as possible. */
-	  len = write(fileno(stdout), buffer_ptr(&stdout_buffer),
-		      buffer_len(&stdout_buffer));
-	  if (len <= 0)
-	    {
-	      if (errno == EAGAIN)
-		len = 0;
-	      else
-		{
-		  /* An error or EOF was encountered.  Put an error message
-		     to stderr buffer. */
-		  sprintf(buf, "write stdout: %s\r\n", strerror(errno));
-		  buffer_append(&stderr_buffer, buf, strlen(buf));
-		  stderr_bytes += strlen(buf);
-		  goto quit;
-		}
-	    }
-	  /* Consume printed data from the buffer. */
-	  buffer_consume(&stdout_buffer, len);
-	}
-
-      /* Write buffered output to stderr. */
-      if (FD_ISSET(fileno(stderr), &writeset))
-	{
-	  /* Write as much data as possible. */
-	  len = write(fileno(stderr), buffer_ptr(&stderr_buffer),
-		      buffer_len(&stderr_buffer));
-	  if (len <= 0)
-	    if (errno == EAGAIN)
-	      len = 0;
-	    else
-	      goto quit; /* EOF or error, but can't even print error message. */
-	  /* Consume printed characters from the buffer. */
-	  buffer_consume(&stderr_buffer, len);
-	}
-
-      /* Send as much buffered packet data as possible to the sender. */
-      if (FD_ISSET(connection, &writeset))
-	packet_write_poll();
-    }
-
- quit:
-  /* Terminate the session. */
-
-  /* Stop listening for connections. */
-  channel_stop_listening();
-
-  /* In interactive mode (with pseudo tty) display a message indicating that
-     the connection has been closed. */
-  if (have_pty)
-    {
-      sprintf(buf, "Connection to %.300s closed.\r\n", host);
-      buffer_append(&stderr_buffer, buf, strlen(buf));
-      stderr_bytes += strlen(buf);
-    }
-
-  /* Output any buffered data for stdout. */
-  while (buffer_len(&stdout_buffer) > 0)
-    {
-      len = write(fileno(stdout), buffer_ptr(&stdout_buffer), 
-		  buffer_len(&stdout_buffer));
-      if (len <= 0)
-	{
-	  error("Write failed flushing stdout buffer.");
-	  break;
-	}
-      buffer_consume(&stdout_buffer, len);
-    }
-
-  /* Output any buffered data for stderr. */
-  while (buffer_len(&stderr_buffer) > 0)
-    {
-      len = write(fileno(stderr), buffer_ptr(&stderr_buffer), 
-		  buffer_len(&stderr_buffer));
-      if (len <= 0)
-	{
-	  error("Write failed flushing stderr buffer.");
-	  break;
-	}
-      buffer_consume(&stderr_buffer, len);
-    }
-
-  /* Leave raw mode. */
-  if (have_pty)
-    leave_raw_mode();
-
-  /* Clear and free any buffers. */
-  memset(buf, 0, sizeof(buf));
-  buffer_free(&stdin_buffer);
-  buffer_free(&stdout_buffer);
-  buffer_free(&stderr_buffer);
-
-  /* Report bytes transferred, and transfer rates. */
-  total_time = get_current_time() - start_time;
-  debug("Transferred: stdin %lu, stdout %lu, stderr %lu bytes in %.1f seconds",
-	stdin_bytes, stdout_bytes, stderr_bytes, total_time);
-  if (total_time > 0)
-    debug("Bytes per second: stdin %.1f, stdout %.1f, stderr %.1f\n",
-	  stdin_bytes / total_time, stdout_bytes / total_time,
-	  stderr_bytes / total_time);
-
-  /* Return the exit status of the program. */
-  debug("Exit status %d", exit_status);
-  return exit_status;
 }

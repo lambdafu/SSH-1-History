@@ -11,8 +11,18 @@ and ssh has the necessary privileges.)
 */
 
 /*
- * $Id: scp.c,v 1.6 1995/08/18 22:55:53 ylo Exp $
+ * $Id: scp.c,v 1.9 1995/10/02 01:26:02 ylo Exp $
  * $Log: scp.c,v $
+ * Revision 1.9  1995/10/02  01:26:02  ylo
+ * 	Fixed code for no HAVE_FCHMOD case.
+ *
+ * Revision 1.8  1995/09/27  02:14:56  ylo
+ * 	Added support for SCO.
+ *
+ * Revision 1.7  1995/09/13  12:00:30  ylo
+ * 	Don't use -l unless user name is explicitly given (so that
+ * 	User works in .ssh/config).
+ *
  * Revision 1.6  1995/08/18  22:55:53  ylo
  * 	Added utimbuf kludges for NextStep.
  * 	Added "-P port" option.
@@ -62,7 +72,7 @@ and ssh has the necessary privileges.)
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- *	$Id: scp.c,v 1.6 1995/08/18 22:55:53 ylo Exp $
+ *	$Id: scp.c,v 1.9 1995/10/02 01:26:02 ylo Exp $
  */
 
 #ifndef lint
@@ -105,6 +115,13 @@ struct utimbuf
 /* This is set to non-zero to enable verbose mode. */
 int verbose = 0;
 
+/* This is set to non-zero if compression is desired. */
+int compress = 0;
+
+/* This is set to non-zero if running in batch mode (that is, password
+   and passphrase queries are not allowed). */
+int batchmode = 0;
+
 /* This is set to the cipher type string if given on the command line. */
 char *cipher = NULL;
 
@@ -121,17 +138,25 @@ char *port = NULL;
 
 int do_cmd(char *host, char *remuser, char *cmd, int *fdin, int *fdout)
 {
-  int pin[2], pout[2];
+  int pin[2], pout[2], reserved[2];
 
   if (verbose)
     fprintf(stderr, "Executing: host %s, user %s, command %s\n",
-	    host, remuser, cmd);
+	    host, remuser ? remuser : "(unspecified)", cmd);
+
+  /* Reserve two descriptors so that the real pipes won't get descriptors
+     0 and 1 because that will screw up dup2 below. */
+  pipe(reserved);
 
   /* Create a socket pair for communicating with ssh. */
   if (pipe(pin) < 0)
     fatal("pipe: %s", strerror(errno));
   if (pipe(pout) < 0)
     fatal("pipe: %s", strerror(errno));
+
+  /* Free the reserved descriptors. */
+  close(reserved[0]);
+  close(reserved[1]);
 
   /* For a child to execute the command on the remote host using ssh. */
   if (fork() == 0) 
@@ -150,9 +175,14 @@ int do_cmd(char *host, char *remuser, char *cmd, int *fdin, int *fdout)
       i = 0;
       args[i++] = SSH_PROGRAM;
       args[i++] = "-x";
+      args[i++] = "-a";
       args[i++] = "-oFallBackToRsh no";
       if (verbose)
 	args[i++] = "-v";
+      if (compress)
+	args[i++] = "-C";
+      if (batchmode)
+	args[i++] = "-oBatchMode yes";
       if (cipher != NULL)
 	{
 	  args[i++] = "-c";
@@ -168,8 +198,11 @@ int do_cmd(char *host, char *remuser, char *cmd, int *fdin, int *fdout)
 	  args[i++] = "-p";
 	  args[i++] = port;
 	}
-      args[i++] = "-l";
-      args[i++] = remuser;
+      if (remuser != NULL)
+	{
+	  args[i++] = "-l";
+	  args[i++] = remuser;
+	}
       args[i++] = host;
       args[i++] = cmd;
       args[i++] = NULL;
@@ -244,7 +277,7 @@ main(argc, argv)
 	extern int optind;
 
 	fflag = tflag = 0;
-	while ((ch = getopt(argc, argv, "dfprtvc:i:P:")) != EOF)
+	while ((ch = getopt(argc, argv, "dfprtvBCc:i:P:")) != EOF)
 		switch(ch) {			/* User-visible flags. */
 		case 'p':
 			pflag = 1;
@@ -275,6 +308,12 @@ main(argc, argv)
 			break;
 		case 'v':
 			verbose = 1;
+		  	break;
+		case 'B':
+		  	batchmode = 1;
+		  	break;
+		case 'C':
+		  	compress = 1;
 		  	break;
 		case '?':
 		default:
@@ -389,8 +428,7 @@ toremote(targ, argc, argv)
 			        bp = xmalloc(len);
 				(void)sprintf(bp, "%s -t %s", cmd, targ);
 				host = thost;
-				if (do_cmd(host, 
-					   tuser ? tuser : pwd->pw_name, 
+				if (do_cmd(host,  tuser,
 					   bp, &remin, &remout) < 0)
 				  exit(1);
 				if (response() < 0)
@@ -430,7 +468,7 @@ tolocal(argc, argv)
 			src = ".";
 		if ((host = strchr(argv[i], '@')) == NULL) {
 			host = argv[i];
-			suser = pwd->pw_name;
+			suser = NULL;
 		} else {
 			*host++ = 0;
 			suser = argv[i];
@@ -811,12 +849,20 @@ bad:			run_err("%s: %s", np, strerror(errno));
 #endif
 		if (pflag) {
 			if (exists || omode != mode)
+#ifdef HAVE_FCHMOD
 				if (fchmod(ofd, omode))
+#else /* HAVE_FCHMOD */
+				if (chmod(np, omode))
+#endif /* HAVE_FCHMOD */
 					run_err("%s: set mode: %s",
 					    np, strerror(errno));
 		} else {
 			if (!exists && omode != mode)
+#ifdef HAVE_FCHMOD
 				if (fchmod(ofd, omode & ~mask))
+#else /* HAVE_FCHMOD */
+				if (chmod(np, omode & ~mask))
+#endif /* HAVE_FCHMOD */
 					run_err("%s: set mode: %s",
 					    np, strerror(errno));
 		}
@@ -946,7 +992,7 @@ run_err(const char *fmt, ...)
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- *	$Id: scp.c,v 1.6 1995/08/18 22:55:53 ylo Exp $
+ *	$Id: scp.c,v 1.9 1995/10/02 01:26:02 ylo Exp $
  */
 
 char *

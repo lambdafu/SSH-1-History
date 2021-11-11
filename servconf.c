@@ -11,6 +11,12 @@ Created: Mon Aug 21 15:48:58 1995 ylo
 
 */
 
+/*
+ * $Id$
+ * $Log$
+ * $EndLog$
+ */
+
 #include "includes.h"
 #include "ssh.h"
 #include "servconf.h"
@@ -24,18 +30,24 @@ void initialize_server_options(ServerOptions *options)
   options->port = -1;
   options->listen_addr.s_addr = INADDR_ANY;
   options->host_key_file = NULL;
+  options->random_seed_file = NULL;
   options->server_key_bits = -1;
   options->login_grace_time = -1;
   options->key_regeneration_time = -1;
   options->permit_root_login = -1;
+  options->ignore_rhosts = -1;
   options->quiet_mode = -1;
   options->fascist_logging = -1;
   options->print_motd = -1;
+  options->x11_forwarding = -1;
+  options->strict_modes = -1;
+  options->keepalives = -1;
   options->log_facility = (SyslogFacility)-1;
   options->rhosts_authentication = -1;
   options->rhosts_rsa_authentication = -1;
   options->rsa_authentication = -1;
   options->password_authentication = -1;
+  options->permit_empty_passwd = -1;
   options->num_allow_hosts = 0;
   options->num_deny_hosts = 0;
 }
@@ -55,6 +67,8 @@ void fill_default_server_options(ServerOptions *options)
     }
   if (options->host_key_file == NULL)
     options->host_key_file = HOST_KEY_FILE;
+  if (options->random_seed_file == NULL)
+    options->random_seed_file = SSH_DAEMON_SEED_FILE;
   if (options->server_key_bits == -1)
     options->server_key_bits = 768;
   if (options->login_grace_time == -1)
@@ -63,12 +77,20 @@ void fill_default_server_options(ServerOptions *options)
     options->key_regeneration_time = 3600;
   if (options->permit_root_login == -1)
     options->permit_root_login = 1;
+  if (options->ignore_rhosts == -1)
+    options->ignore_rhosts = 0;
   if (options->quiet_mode == -1)
     options->quiet_mode = 0;
   if (options->fascist_logging == -1)
     options->fascist_logging = 1;
   if (options->print_motd == -1)
     options->print_motd = 1;
+  if (options->x11_forwarding == -1)
+    options->x11_forwarding = 1;
+  if (options->strict_modes == -1)
+    options->strict_modes = 1;
+  if (options->keepalives == -1)
+    options->keepalives = 1;
   if (options->log_facility == (SyslogFacility)(-1))
     options->log_facility = SYSLOG_FACILITY_DAEMON;
   if (options->rhosts_authentication == -1)
@@ -79,6 +101,8 @@ void fill_default_server_options(ServerOptions *options)
     options->rsa_authentication = 1;
   if (options->password_authentication == -1)
     options->password_authentication = 1;
+  if (options->permit_empty_passwd == -1)
+      options->permit_empty_passwd = 1;
 }
 
 #define WHITESPACE " \t\r\n"
@@ -90,7 +114,8 @@ typedef enum
   sPermitRootLogin, sQuietMode, sFascistLogging, sLogFacility,
   sRhostsAuthentication, sRhostsRSAAuthentication, sRSAAuthentication,
   sPasswordAuthentication, sAllowHosts, sDenyHosts, sListenAddress,
-  sPrintMotd
+  sPrintMotd, sIgnoreRhosts, sX11Forwarding,
+  sStrictModes, sEmptyPasswd, sRandomSeedFile, sKeepAlives
 } ServerOpCodes;
 
 /* Textual representation of the tokens. */
@@ -117,6 +142,12 @@ static struct
   { "DenyHosts", sDenyHosts },
   { "ListenAddress", sListenAddress },
   { "PrintMotd", sPrintMotd },
+  { "IgnoreRhosts", sIgnoreRhosts },
+  { "X11Forwarding", sX11Forwarding },
+  { "StrictModes", sStrictModes },
+  { "PermitEmptyPasswords", sEmptyPasswd },
+  { "RandomSeed", sRandomSeedFile },
+  { "KeepAlive", sKeepAlives },
   { NULL, 0 }
 };
 
@@ -163,7 +194,7 @@ void read_server_config(ServerOptions *options, const char *filename)
 {
   FILE *f;
   char line[1024];
-  char *cp;
+  char *cp, **charptr;
   int linenum, *intptr, i, value;
   ServerOpCodes opcode;
 
@@ -228,6 +259,8 @@ void read_server_config(ServerOptions *options, const char *filename)
 	  break;
 
 	case sHostKeyFile:
+	  charptr = &options->host_key_file;
+	parse_pathname:
 	  cp = strtok(NULL, WHITESPACE);
 	  if (!cp)
 	    {
@@ -235,9 +268,13 @@ void read_server_config(ServerOptions *options, const char *filename)
 		      filename, linenum);
 	      exit(1);
 	    }
-	  if (options->host_key_file == NULL)
-	    options->host_key_file = tilde_expand_filename(cp, getuid());
+	  if (*charptr == NULL)
+	    *charptr = tilde_expand_filename(cp, getuid());
 	  break;
+
+	case sRandomSeedFile:
+	  charptr = &options->random_seed_file;
+	  goto parse_pathname;
 
 	case sPermitRootLogin:
 	  intptr = &options->permit_root_login;
@@ -263,6 +300,10 @@ void read_server_config(ServerOptions *options, const char *filename)
 	  if (*intptr == -1)
 	    *intptr = value;
 	  break;
+
+	case sIgnoreRhosts:
+	  intptr = &options->ignore_rhosts;
+	  goto parse_flag;
 	  
 	case sQuietMode:
 	  intptr = &options->quiet_mode;
@@ -291,7 +332,23 @@ void read_server_config(ServerOptions *options, const char *filename)
 	case sPrintMotd:
 	  intptr = &options->print_motd;
 	  goto parse_flag;
+
+	case sX11Forwarding:
+	  intptr = &options->x11_forwarding;
+	  goto parse_flag;
+
+	case sStrictModes:
+	  intptr = &options->strict_modes;
+	  goto parse_flag;
+
+	case sKeepAlives:
+	  intptr = &options->keepalives;
+	  goto parse_flag;
 	  
+	case sEmptyPasswd:
+	  intptr = &options->permit_empty_passwd;
+	  goto parse_flag;
+
 	case sLogFacility:
 	  cp = strtok(NULL, WHITESPACE);
 	  if (!cp)

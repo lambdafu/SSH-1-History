@@ -14,8 +14,14 @@ Functions for reading the configuration files.
 */
 
 /*
- * $Id: readconf.c,v 1.5 1995/09/06 19:52:36 ylo Exp $
+ * $Id: readconf.c,v 1.7 1995/09/24 23:59:44 ylo Exp $
  * $Log: readconf.c,v $
+ * Revision 1.7  1995/09/24  23:59:44  ylo
+ * 	Added ConnectionAttempts.
+ *
+ * Revision 1.6  1995/09/09  21:26:44  ylo
+ * /m/shadows/u2/users/ylo/ssh/README
+ *
  * Revision 1.5  1995/09/06  19:52:36  ylo
  * 	Fixed spelling of fascist.
  *
@@ -68,6 +74,7 @@ Functions for reading the configuration files.
 
    Host puukko.hut.fi
      User t35124p
+     ProxyCommand ssh-proxy %h %p
 
    Host *.fr
      UseRsh yes
@@ -86,6 +93,8 @@ Functions for reading the configuration files.
      RhostsRSAAuthentication yes
      FallBackToRsh no
      UseRsh no
+     StrictHostKeyChecking yes
+     KeepAlives no
      IdentityFile ~/.ssh/identity
      Port 22
      Cipher idea
@@ -106,8 +115,10 @@ typedef enum
   oForwardAgent, oForwardX11, oRhostsAuthentication,
   oPasswordAuthentication, oRSAAuthentication, oFallBackToRsh, oUseRsh,
   oIdentityFile, oHostName, oPort, oCipher, oRemoteForward, oLocalForward, 
-  oUser, oHost, oEscapeChar, oRhostsRSAAuthentication,
-  oGlobalKnownHostsFile, oUserKnownHostsFile
+  oUser, oHost, oEscapeChar, oRhostsRSAAuthentication, oProxyCommand,
+  oGlobalKnownHostsFile, oUserKnownHostsFile, oConnectionAttempts,
+  oBatchMode, oStrictHostKeyChecking, oCompression, oCompressionLevel,
+  oKeepAlives
 } OpCodes;
 
 /* Textual representations of the tokens. */
@@ -127,6 +138,7 @@ static struct
   { "UseRsh", oUseRsh },
   { "IdentityFile", oIdentityFile },
   { "HostName", oHostName },
+  { "ProxyCommand", oProxyCommand },
   { "Port", oPort },
   { "Cipher", oCipher },
   { "RemoteForward", oRemoteForward },
@@ -137,6 +149,12 @@ static struct
   { "RhostsRSAAuthentication", oRhostsRSAAuthentication },
   { "GlobalKnownHostsFile", oGlobalKnownHostsFile },
   { "UserKnownHostsFile", oUserKnownHostsFile },
+  { "ConnectionAttempts", oConnectionAttempts },
+  { "BatchMode", oBatchMode },
+  { "StrictHostKeyChecking", oStrictHostKeyChecking },
+  { "Compression", oCompression },
+  { "CompressionLevel", oCompressionLevel },
+  { "KeepAlive", oKeepAlives },
   { NULL, 0 }
 };
 
@@ -186,8 +204,8 @@ static OpCodes parse_token(const char *cp, const char *filename, int linenum)
     if (strcmp(cp, keywords[i].name) == 0)
       return keywords[i].opcode;
 
-  fatal("%.200s line %d: Bad configuration option: %.100s", 
-	filename, linenum, cp);
+  fatal("%.200s line %d: Bad configuration option.",
+	filename, linenum);
   /*NOTREACHED*/
   return 0;
 }
@@ -199,7 +217,7 @@ void process_config_line(Options *options, const char *host,
 			 char *line, const char *filename, int linenum,
 			 int *activep)
 {
-  char buf[256], *cp, **charptr;
+  char buf[256], *cp, *string, **charptr;
   int opcode, *intptr, value, fwd_port, fwd_host_port;
 
   /* Skip leading whitespace. */
@@ -219,7 +237,7 @@ void process_config_line(Options *options, const char *host,
     parse_flag:
       cp = strtok(NULL, WHITESPACE);
       if (!cp)
-	fatal("%.200s line %d: Missing yes/no argument", 
+	fatal("%.200s line %d: Missing yes/no argument.",
 	      filename, linenum);
       value = 0; /* To avoid compiler warning... */
       if (strcmp(cp, "yes") == 0)
@@ -228,8 +246,8 @@ void process_config_line(Options *options, const char *host,
 	if (strcmp(cp, "no") == 0)
 	  value = 0;
 	else
-	  fatal("%.200s line %d: Bad yes/no argument: %.200s", 
-		filename, linenum, cp);
+	  fatal("%.200s line %d: Bad yes/no argument.", 
+		filename, linenum);
       if (*activep && *intptr == -1)
 	*intptr = value;
       break;
@@ -261,7 +279,27 @@ void process_config_line(Options *options, const char *host,
     case oUseRsh:
       intptr = &options->use_rsh;
       goto parse_flag;
+
+    case oBatchMode:
+      intptr = &options->batch_mode;
+      goto parse_flag;
+
+    case oStrictHostKeyChecking:
+      intptr = &options->strict_host_key_checking;
+      goto parse_flag;
       
+    case oCompression:
+      intptr = &options->compression;
+      goto parse_flag;
+
+    case oKeepAlives:
+      intptr = &options->keepalives;
+      goto parse_flag;
+
+    case oCompressionLevel:
+      intptr = &options->compression_level;
+      goto parse_int;
+
     case oIdentityFile:
       cp = strtok(NULL, WHITESPACE);
       if (!cp)
@@ -297,24 +335,44 @@ void process_config_line(Options *options, const char *host,
       charptr = &options->hostname;
       goto parse_string;
       
+    case oProxyCommand:
+      charptr = &options->proxy_command;
+      string = xstrdup("");
+      while ((cp = strtok(NULL, WHITESPACE)) != NULL)
+	{
+	  string = xrealloc(string, strlen(string) + strlen(cp) + 2);
+	  strcat(string, " ");
+	  strcat(string, cp);
+	}
+      if (*activep && *charptr == NULL)
+	*charptr = string;
+      else
+	xfree(string);
+      return;
+
     case oPort:
       intptr = &options->port;
+    parse_int:
       cp = strtok(NULL, WHITESPACE);
       if (!cp)
 	fatal("%.200s line %d: Missing argument.", filename, linenum);
       if (cp[0] < '0' || cp[0] > '9')
-	fatal("%.200s line %d: Bad number: %.100s", filename, linenum, cp);
+	fatal("%.200s line %d: Bad number.", filename, linenum);
       value = atoi(cp);
       if (*activep && *intptr == -1)
 	*intptr = value;
       break;
       
+    case oConnectionAttempts:
+      intptr = &options->connection_attempts;
+      goto parse_int;
+
     case oCipher:
       intptr = &options->cipher;
       cp = strtok(NULL, WHITESPACE);
       value = cipher_number(cp);
       if (value == -1)
-	fatal("%.200s line %d: Bad cipher: %.100s", filename, linenum, cp);
+	fatal("%.200s line %d: Bad cipher.", filename, linenum);
       if (*activep && *intptr == -1)
 	*intptr = value;
       break;
@@ -452,10 +510,17 @@ void initialize_options(Options *options)
   options->rhosts_rsa_authentication = -1;
   options->fallback_to_rsh = -1;
   options->use_rsh = -1;
+  options->batch_mode = -1;
+  options->strict_host_key_checking = -1;
+  options->compression = -1;
+  options->keepalives = -1;
+  options->compression_level = -1;
   options->port = -1;
+  options->connection_attempts = -1;
   options->cipher = -1;
   options->num_identity_files = 0;
   options->hostname = NULL;
+  options->proxy_command = NULL;
   options->user = NULL;
   options->escape_char = -1;
   options->system_hostfile = NULL;
@@ -485,14 +550,27 @@ void fill_default_options(Options *options)
     options->fallback_to_rsh = 1;
   if (options->use_rsh == -1)
     options->use_rsh = 0;
+  if (options->batch_mode == -1)
+    options->batch_mode = 0;
+  if (options->strict_host_key_checking == -1)
+    options->strict_host_key_checking = 0;
+  if (options->compression == -1)
+    options->compression = 0;
+  if (options->keepalives == -1)
+    options->keepalives = 1;
+  if (options->compression_level == -1)
+    options->compression_level = 6;
   if (options->port == -1)
     options->port = 0; /* Filled in ssh_connect. */
+  if (options->connection_attempts == -1)
+    options->connection_attempts = 4;
   if (options->cipher == -1)
     options->cipher = SSH_CIPHER_NOT_SET; /* Selected in ssh_login(). */
   if (options->num_identity_files == 0)
     {
-      options->identity_files[0] = xmalloc(2 + strlen(SSH_CLIENT_IDENTITY) + 1);
-      sprintf(options->identity_files[0], "~/%s", SSH_CLIENT_IDENTITY);
+      options->identity_files[0] = 
+	xmalloc(2 + strlen(SSH_CLIENT_IDENTITY) + 1);
+      sprintf(options->identity_files[0], "~/%.100s", SSH_CLIENT_IDENTITY);
       options->num_identity_files = 1;
     }
   if (options->escape_char == -1)
@@ -501,6 +579,7 @@ void fill_default_options(Options *options)
     options->system_hostfile = SSH_SYSTEM_HOSTFILE;
   if (options->user_hostfile == NULL)
     options->user_hostfile = SSH_USER_HOSTFILE;
+  /* options->proxy_command should not be set by default */
   /* options->user will be set in the main program if appropriate */
   /* options->hostname will be set in the main program if appropriate */
 }

@@ -9,12 +9,18 @@ Copyright (c) 1995 Tatu Ylonen <ylo@cs.hut.fi>, Espoo, Finland
                    All rights reserved
 
 Created: Tue Aug 22 17:25:30 1995 ylo
-Last modified: Tue Aug 22 20:19:33 1995 ylo
 
 */
 
 /*
  * $Log: minfd.c,v $
+ * Revision 1.4  1995/10/02  01:24:36  ylo
+ * 	Avoid a compiler warning.
+ * 	Removed "Last modified" header.
+ *
+ * Revision 1.3  1995/09/09  21:26:43  ylo
+ * /m/shadows/u2/users/ylo/ssh/README
+ *
  * Revision 1.2  1995/08/29  22:32:33  ylo
  * 	Ported to ssh source tree.
  *
@@ -47,8 +53,11 @@ _get_permanent_fd(const char *shellpath)
 
   if (!shellpath) 
     {
-      if ((pwd = getpwuid(getuid())))
-	shellpath = pwd->pw_shell;
+      if (!shellpath)
+	shellpath = getenv("SHELL");
+      if (!shellpath)
+	if ((pwd = getpwuid(getuid())))
+	  shellpath = pwd->pw_shell;
       if (!shellpath)
 	shellpath = DEFAULT_SHELL;
     }
@@ -83,7 +92,7 @@ _get_permanent_fd(const char *shellpath)
       if (fdlim_set(fd + 1) < 0)
 	return -1;
       if (fcntl(fd, F_GETFL, NULL) < 0)
-	return fd;
+	break;
       fd++;
     }
   return fd;

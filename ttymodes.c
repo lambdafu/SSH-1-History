@@ -17,8 +17,18 @@ suitable code.
 */
 
 /*
- * $Id: ttymodes.c,v 1.3 1995/08/18 22:58:34 ylo Exp $
+ * $Id: ttymodes.c,v 1.6 1995/10/02 01:29:44 ylo Exp $
  * $Log: ttymodes.c,v $
+ * Revision 1.6  1995/10/02  01:29:44  ylo
+ * 	Changed warning message to make it less likely people will
+ * 	report it as a bug because it is not.
+ *
+ * Revision 1.5  1995/09/27  02:19:11  ylo
+ * 	Use SPEED_T_IN_STDTYPES_H.
+ *
+ * Revision 1.4  1995/09/09  21:26:48  ylo
+ * /m/shadows/u2/users/ylo/ssh/README
+ *
  * Revision 1.3  1995/08/18  22:58:34  ylo
  * 	Added support for NextStep.
  * 	Fixed typos with EXTB.
@@ -45,7 +55,7 @@ suitable code.
 #define cfgetispeed(tio)	((tio)->sg_ispeed)
 #define cfsetospeed(tio, spd)	((tio)->sg_ospeed = (spd), 0)
 #define cfsetispeed(tio, spd)	((tio)->sg_ispeed = (spd), 0)
-#ifndef _NEXT_SOURCE
+#ifndef SPEED_T_IN_STDTYPES_H
 typedef char speed_t;
 #endif
 #endif
@@ -251,7 +261,7 @@ void tty_make_modes(int fd)
   if (tcgetattr(fd, &tio) < 0)
     {
       packet_put_char(TTY_OP_END);
-      log("tcgetattr: %s", strerror(errno));
+      log("tcgetattr: %.100s", strerror(errno));
       return;
     }
 #endif /* USING_TERMIOS */
@@ -259,32 +269,32 @@ void tty_make_modes(int fd)
   if (ioctl(fd, TIOCGETP, &tio) < 0)
     {
       packet_put_char(TTY_OP_END);
-      log("ioctl(fd, TIOCGETP, ...): %s", strerror(errno));
+      log("ioctl(fd, TIOCGETP, ...): %.100s", strerror(errno));
       return;
     }
   if (ioctl(fd, TIOCGETC, &tiotc) < 0)
     {
       packet_put_char(TTY_OP_END);
-      log("ioctl(fd, TIOCGETC, ...): %s", strerror(errno));
+      log("ioctl(fd, TIOCGETC, ...): %.100s", strerror(errno));
       return;
     }
   if (ioctl(fd, TIOCLGET, &tiolm) < 0)
     {
       packet_put_char(TTY_OP_END);
-      log("ioctl(fd, TIOCLGET, ...): %s", strerror(errno));
+      log("ioctl(fd, TIOCLGET, ...): %.100s", strerror(errno));
       return;
     }
   if (ioctl(fd, TIOCGLTC, &tioltc) < 0)
     {
       packet_put_char(TTY_OP_END);
-      log("ioctl(fd, TIOCGLTC, ...): %s", strerror(errno));
+      log("ioctl(fd, TIOCGLTC, ...): %.100s", strerror(errno));
       return;
     }
 #ifdef TIOCGSTAT
   if (ioctl(fd, TIOCGSTAT, &tiots) < 0) 
     {
       packet_put_char(TTY_OP_END);
-      log("ioctl(fd, TIOCGSTAT, ...): %s", strerror(errno));
+      log("ioctl(fd, TIOCGSTAT, ...): %.100s", strerror(errno));
       return;
     }
 #endif /* TIOCGSTAT */
@@ -441,7 +451,7 @@ void tty_parse_modes(int fd)
 #undef SGTTYMODEN
 
 	default:
-	  debug("Ignoring unimplemented tty mode opcode %d (0x%x)",
+	  debug("Ignoring unsupported tty mode opcode %d (0x%x)",
 		opcode, opcode);
 	  /* Opcodes 0 to 127 are defined to have a one-byte argument. */
 	  if (opcode >= 0 && opcode < 128)
@@ -471,7 +481,7 @@ void tty_parse_modes(int fd)
   /* Set the new modes for the terminal. */
 #ifdef USING_TERMIOS
   if (tcsetattr(fd, TCSANOW, &tio) < 0)
-    log("Setting tty modes failed: %s", strerror(errno));
+    log("Setting tty modes failed: %.100s", strerror(errno));
 #endif /* USING_TERMIOS */
 #ifdef USING_SGTTY
   if (ioctl(fd, TIOCSETP, &tio) < 0
@@ -482,6 +492,6 @@ void tty_parse_modes(int fd)
       || ioctl(fd, TIOCSSTAT, &tiots) < 0
 #endif /* TIOCSSTAT */
      ) 
-    log("Setting tty modes failed: %s", strerror(errno));
+    log("Setting tty modes failed: %.100s", strerror(errno));
 #endif /* USING_SGTTY */
 }

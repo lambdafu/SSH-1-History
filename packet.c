@@ -15,8 +15,14 @@ with the other side.  This same code is used both on client and server side.
 */
 
 /*
- * $Id: packet.c,v 1.4 1995/07/27 03:59:37 ylo Exp $
+ * $Id: packet.c,v 1.6 1995/09/24 23:59:12 ylo Exp $
  * $Log: packet.c,v $
+ * Revision 1.6  1995/09/24  23:59:12  ylo
+ * 	Added packet_get_protocol_flags.
+ *
+ * Revision 1.5  1995/09/09  21:26:43  ylo
+ * /m/shadows/u2/users/ylo/ssh/README
+ *
  * Revision 1.4  1995/07/27  03:59:37  ylo
  * 	Fixed a bug in new rc4 keying.
  *
@@ -41,10 +47,14 @@ with the other side.  This same code is used both on client and server side.
 #include "crc32.h"
 #include "cipher.h"
 #include "getput.h"
+#include "compress.h"
 
-/* This variable contains the file descriptor of the socket for connecting
-   to the other side. */
-static int connection = -1;
+/* This variable contains the file descriptors used for communicating with
+   the other side.  connection_in is used for reading; connection_out
+   for writing.  These can be the same descriptor, in which case it is
+   assumed to be a socket. */
+static int connection_in = -1;
+static int connection_out = -1;
 
 /* Cipher type.  This value is only used to determine whether to pad the
    packets with zeroes or random data. */
@@ -70,6 +80,12 @@ static Buffer outgoing_packet;
 /* Buffer for the incoming packet currently being processed. */
 static Buffer incoming_packet;
 
+/* Scratch buffer for packet compression/decompression. */
+static Buffer compression_buffer;
+
+/* Flag indicating whether packet compression/decompression is enabled. */
+static int packet_compression = 0;
+
 /* Pointer to the random number generator state. */
 static RandomState *random_state;
 
@@ -79,12 +95,13 @@ static int initialized = 0;
 /* Set to true if the connection is interactive. */
 static int interactive_mode = 0;
 
-/* Sets the socket used for communication.  Disables encryption until
+/* Sets the descriptors used for communication.  Disables encryption until
    packet_set_encryption_key is called. */
 
-void packet_set_connection(int socket, RandomState *state)
+void packet_set_connection(int fd_in, int fd_out, RandomState *state)
 {
-  connection = socket;
+  connection_in = fd_in;
+  connection_out = fd_out;
   random_state = state;
   cipher_type = SSH_CIPHER_NONE;
   cipher_set_key(&send_context, SSH_CIPHER_NONE, (unsigned char *)"", 0, 1);
@@ -97,13 +114,48 @@ void packet_set_connection(int socket, RandomState *state)
       buffer_init(&outgoing_packet);
       buffer_init(&incoming_packet);
     }
+
+  /* Kludge: arrange the close function to be called from fatal(). */
+  fatal_add_cleanup((void (*)(void *))packet_close, NULL);
 }
 
-/* Returns the socket used for communication. */
+/* Sets the connection into non-blocking mode. */
 
-int packet_get_connection()
+void packet_set_nonblocking()
 {
-  return connection;
+  /* Set the socket into non-blocking mode. */
+#if defined(O_NONBLOCK) && !defined(O_NONBLOCK_BROKEN)
+  if (fcntl(connection_in, F_SETFL, O_NONBLOCK) < 0)
+    error("fcntl O_NONBLOCK: %.100s", strerror(errno));
+#else /* O_NONBLOCK && !O_NONBLOCK_BROKEN */
+  if (fcntl(connection_in, F_SETFL, O_NDELAY) < 0)
+    error("fcntl O_NDELAY: %.100s", strerror(errno));
+#endif /* O_NONBLOCK && !O_NONBLOCK_BROKEN */
+
+  if (connection_out != connection_in)
+    {
+#if defined(O_NONBLOCK) && !defined(O_NONBLOCK_BROKEN)
+      if (fcntl(connection_out, F_SETFL, O_NONBLOCK) < 0)
+	error("fcntl O_NONBLOCK: %.100s", strerror(errno));
+#else /* O_NONBLOCK && !O_NONBLOCK_BROKEN */  
+      if (fcntl(connection_out, F_SETFL, O_NDELAY) < 0)
+	error("fcntl O_NDELAY: %.100s", strerror(errno));
+#endif /* O_NONBLOCK && !O_NONBLOCK_BROKEN */
+    }
+}
+
+/* Returns the socket used for reading. */
+
+int packet_get_connection_in()
+{
+  return connection_in;
+}
+
+/* Returns the descriptor used for writing. */
+
+int packet_get_connection_out()
+{
+  return connection_out;
 }
 
 /* Closes the connection and clears and frees internal data structures. */
@@ -113,12 +165,25 @@ void packet_close()
   if (!initialized)
     return;
   initialized = 0;
-  shutdown(connection, 2);
-  close(connection);
+  if (connection_in == connection_out)
+    {
+      shutdown(connection_out, 2);
+      close(connection_out);
+    }
+  else
+    {
+      close(connection_in);
+      close(connection_out);
+    }
   buffer_free(&input);
   buffer_free(&output);
   buffer_free(&outgoing_packet);
   buffer_free(&incoming_packet);
+  if (packet_compression)
+    {
+      buffer_free(&compression_buffer);
+      buffer_compress_uninit();
+    }
 }
 
 /* Sets remote side protocol flags. */
@@ -126,6 +191,26 @@ void packet_close()
 void packet_set_protocol_flags(unsigned int protocol_flags)
 {
   remote_protocol_flags = protocol_flags;
+  channel_set_options((protocol_flags & SSH_PROTOFLAG_HOST_IN_FWD_OPEN) != 0);
+}
+
+/* Returns the remote protocol flags set earlier by the above function. */
+
+unsigned int packet_get_protocol_flags()
+{
+  return remote_protocol_flags;
+}
+
+/* Starts packet compression from the next packet on in both directions. 
+   Level is compression level 1 (fastest) - 9 (slow, best) as in gzip. */
+
+void packet_start_compression(int level)
+{
+  if (packet_compression)
+    fatal("Compression already enabled.");
+  packet_compression = 1;
+  buffer_init(&compression_buffer);
+  buffer_compress_init(level);
 }
 
 /* Encrypts the given number of bytes, copying from src to dest.
@@ -229,6 +314,19 @@ void packet_send()
   int i, padding, len;
   unsigned long checksum;
 
+  /* If using packet compression, compress the payload of the outgoing
+     packet. */
+  if (packet_compression)
+    {
+      buffer_clear(&compression_buffer);
+      buffer_consume(&outgoing_packet, 8); /* Skip padding. */
+      buffer_append(&compression_buffer, "\0\0\0\0\0\0\0\0", 8); /* padding */
+      buffer_compress(&outgoing_packet, &compression_buffer);
+      buffer_clear(&outgoing_packet);
+      buffer_append(&outgoing_packet, buffer_ptr(&compression_buffer),
+		    buffer_len(&compression_buffer));
+    }
+
   /* Compute packet length without padding (add checksum, remove padding). */
   len = buffer_len(&outgoing_packet) + 4 - 8;
   
@@ -294,15 +392,15 @@ int packet_read()
       /* Otherwise, wait for some data to arrive, add it to the buffer,
 	 and try again. */
       FD_ZERO(&set);
-      FD_SET(connection, &set);
+      FD_SET(connection_in, &set);
       /* Wait for some data to arrive. */
-      select(connection + 1, &set, NULL, NULL, NULL);
+      select(connection_in + 1, &set, NULL, NULL, NULL);
       /* Read data from the socket. */
-      len = read(connection, buf, sizeof(buf));
+      len = read(connection_in, buf, sizeof(buf));
       if (len == 0)
 	fatal("Connection closed by remote host.");
       if (len < 0)
-	fatal("Read from socket failed: %s", strerror(errno));
+	fatal("Read from socket failed: %.100s", strerror(errno));
       /* Append it to the buffer. */
       packet_process_incoming(buf, len);
     }
@@ -381,6 +479,17 @@ int packet_read_poll()
   stored_checksum = GET_32BIT(ucp);
   if (checksum != stored_checksum)
     packet_disconnect("Corrupted check bytes on input.");
+  buffer_consume_end(&incoming_packet, 4);
+
+  /* If using packet compression, decompress the packet. */
+  if (packet_compression)
+    {
+      buffer_clear(&compression_buffer);
+      buffer_uncompress(&incoming_packet, &compression_buffer);
+      buffer_clear(&incoming_packet);
+      buffer_append(&incoming_packet, buffer_ptr(&compression_buffer),
+		    buffer_len(&compression_buffer));
+    }
 
   /* Get packet type. */
   buffer_get(&incoming_packet, &buf[0], 1);
@@ -503,7 +612,7 @@ void packet_disconnect(const char *fmt, ...)
   packet_close();
 
   /* Display the error locally and exit. */
-  fatal("Local: %s", buf);
+  fatal("Local: %.100s", buf);
 }
 
 /* Checks if there is any buffered output, and tries to write some of the
@@ -514,12 +623,12 @@ void packet_write_poll()
   int len = buffer_len(&output);
   if (len > 0)
     {
-      len = write(connection, buffer_ptr(&output), len);
+      len = write(connection_out, buffer_ptr(&output), len);
       if (len <= 0)
 	if (errno == EAGAIN)
 	  return;
         else
-	  fatal("Write failed: %s", strerror(errno));
+	  fatal("Write failed: %.100s", strerror(errno));
       buffer_consume(&output, len);
     }
 }
@@ -534,8 +643,8 @@ void packet_write_wait()
     {
       fd_set set;
       FD_ZERO(&set);
-      FD_SET(connection, &set);
-      select(connection + 1, NULL, &set, NULL, NULL);
+      FD_SET(connection_out, &set);
+      select(connection_out + 1, NULL, &set, NULL, NULL);
       packet_write_poll();
     }
 }
@@ -559,16 +668,25 @@ int packet_not_very_much_data_to_write()
 
 /* Informs that the current session is interactive.  Sets IP flags for that. */
 
-void packet_set_interactive(int interactive)
+void packet_set_interactive(int interactive, int keepalives)
 {
   int on = 1;
+
+  /* Record that we are in interactive mode. */
   interactive_mode = interactive;
 
-  /* For now, we always set SO_KEEPALIVE.  I know some people don't like this,
-     but otherwise the server may never notice if the client machine reboots. */
-  if (setsockopt(connection, SOL_SOCKET, SO_KEEPALIVE, (void *)&on, 
-		 sizeof(on)) < 0)
-    error("setsockopt SO_KEEPALIVE: %s", strerror(errno));
+  /* Only set socket options if using a socket (as indicated by the descriptors
+     being the same). */
+  if (connection_in != connection_out)
+    return;
+
+  if (keepalives)
+    {
+      /* Set keepalives if requested. */
+      if (setsockopt(connection_in, SOL_SOCKET, SO_KEEPALIVE, (void *)&on, 
+		     sizeof(on)) < 0)
+	error("setsockopt SO_KEEPALIVE: %.100s", strerror(errno));
+    }
 
   if (interactive)
     {
@@ -576,13 +694,13 @@ void packet_set_interactive(int interactive)
 	 and TCP_NODELAY. */
 #ifdef IPTOS_LOWDELAY
       int lowdelay = IPTOS_LOWDELAY;
-      if (setsockopt(connection, IPPROTO_IP, IP_TOS, (void *)&lowdelay, 
+      if (setsockopt(connection_in, IPPROTO_IP, IP_TOS, (void *)&lowdelay, 
 		     sizeof(lowdelay)) < 0)
-	error("setsockopt IPTOS_LOWDELAY: %s", strerror(errno));
+	error("setsockopt IPTOS_LOWDELAY: %.100s", strerror(errno));
 #endif /* IPTOS_LOWDELAY */
-      if (setsockopt(connection, IPPROTO_TCP, TCP_NODELAY, (void *)&on, 
+      if (setsockopt(connection_in, IPPROTO_TCP, TCP_NODELAY, (void *)&on, 
 		     sizeof(on)) < 0)
-	error("setsockopt TCP_NODELAY: %s", strerror(errno));
+	error("setsockopt TCP_NODELAY: %.100s", strerror(errno));
     }
   else
     {
@@ -590,9 +708,9 @@ void packet_set_interactive(int interactive)
 	 IPTOS_THROUGHPUT. */
 #ifdef IPTOS_THROUGHPUT
       int throughput = IPTOS_THROUGHPUT;
-      if (setsockopt(connection, IPPROTO_IP, IP_TOS, (void *)&throughput, 
+      if (setsockopt(connection_in, IPPROTO_IP, IP_TOS, (void *)&throughput, 
 		     sizeof(throughput)) < 0)
-	error("setsockopt IPTOS_THROUGHPUT: %s", strerror(errno));
+	error("setsockopt IPTOS_THROUGHPUT: %.100s", strerror(errno));
 #endif /* IPTOS_THROUGHPUT */
     }
 }
