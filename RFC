@@ -57,7 +57,7 @@ Introduction
 
 Ylonen                                                          [Page 1]
 
-Internet-Draft  SSH (Secure Shell) Remote Login Protocol     15 Nov 1995
+Internet-Draft  SSH (Secure Shell) Remote Login Protocol15 November 1995
 
 
    o    Client RSA-authenticates the server machine in the beginning of
@@ -113,7 +113,7 @@ Overview of the Protocol
 
 Ylonen                                                          [Page 2]
 
-Internet-Draft  SSH (Secure Shell) Remote Login Protocol     15 Nov 1995
+Internet-Draft  SSH (Secure Shell) Remote Login Protocol15 November 1995
 
 
    key (an RSA key regenerated every hour), and other information to the
@@ -169,7 +169,7 @@ The Binary Packet Protocol
 
 Ylonen                                                          [Page 3]
 
-Internet-Draft  SSH (Secure Shell) Remote Login Protocol     15 Nov 1995
+Internet-Draft  SSH (Secure Shell) Remote Login Protocol15 November 1995
 
 
         bytes, msb first.  Gives the length of the packet, not including
@@ -225,7 +225,7 @@ Packet Compression
 
 Ylonen                                                          [Page 4]
 
-Internet-Draft  SSH (Secure Shell) Remote Login Protocol     15 Nov 1995
+Internet-Draft  SSH (Secure Shell) Remote Login Protocol15 November 1995
 
 
    compression dictionary is not flushed between packets.  The two
@@ -281,7 +281,7 @@ Packet Encryption
 
 Ylonen                                                          [Page 5]
 
-Internet-Draft  SSH (Secure Shell) Remote Login Protocol     15 Nov 1995
+Internet-Draft  SSH (Secure Shell) Remote Login Protocol15 November 1995
 
 
         these operations are performed in CBC mode.
@@ -337,7 +337,7 @@ Data Type Encodings
 
 Ylonen                                                          [Page 6]
 
-Internet-Draft  SSH (Secure Shell) Remote Login Protocol     15 Nov 1995
+Internet-Draft  SSH (Secure Shell) Remote Login Protocol15 November 1995
 
 
    32-bit unsigned integer
@@ -393,7 +393,7 @@ Protocol Version Identification
 
 Ylonen                                                          [Page 7]
 
-Internet-Draft  SSH (Secure Shell) Remote Login Protocol     15 Nov 1995
+Internet-Draft  SSH (Secure Shell) Remote Login Protocol15 November 1995
 
 
    version number, and the client contains special code to emulate it,
@@ -408,8 +408,6 @@ Internet-Draft  SSH (Secure Shell) Remote Login Protocol     15 Nov 1995
    ous versions keep the same major protocol version; changes that are
    not compatible increment the major version (which will hopefully
    never happen).  The version described in this document is 1.3.
-
-   The client will
 
 Key Exchange and Server Host Authentication
 
@@ -444,16 +442,16 @@ Key Exchange and Server Host Authentication
    at least 128 bits.
 
    At each encryption step, a multiple-precision integer is constructed
+   from the data to be encrypted as follows (the integer is here inter-
+   preted as a sequence of bytes, msb first; the number of bytes is the
 
 
 
 Ylonen                                                          [Page 8]
 
-Internet-Draft  SSH (Secure Shell) Remote Login Protocol     15 Nov 1995
+Internet-Draft  SSH (Secure Shell) Remote Login Protocol15 November 1995
 
 
-   from the data to be encrypted as follows (the integer is here inter-
-   preted as a sequence of bytes, msb first; the number of bytes is the
    number of bytes needed to represent the modulus).
 
    The most significant byte (which is only partial as the value must be
@@ -500,16 +498,16 @@ Declaring the User Name
 
    If the user does not exist, it is recommended that this returns
    failure, but the server keeps reading messages from the client, and
+   responds to any messages (except SSH_MSG_DISCONNECT, SSH_MSG_IGNORE,
+   and SSH_MSG_DEBUG) with SSH_SMSG_FAILURE.  This way the client cannot
 
 
 
 Ylonen                                                          [Page 9]
 
-Internet-Draft  SSH (Secure Shell) Remote Login Protocol     15 Nov 1995
+Internet-Draft  SSH (Secure Shell) Remote Login Protocol15 November 1995
 
 
-   responds to any messages (except SSH_MSG_DISCONNECT, SSH_MSG_IGNORE,
-   and SSH_MSG_DEBUG) with SSH_SMSG_FAILURE.  This way the client cannot
    be certain whether the user exists.
 
 
@@ -557,14 +555,15 @@ Authentication Phase
         should be reverse-mapped and then forward mapped to ensure that
         it has the proper IP-address.
 
+        This authentication method trusts the remote host (root on the
+
 
 
 Ylonen                                                         [Page 10]
 
-Internet-Draft  SSH (Secure Shell) Remote Login Protocol     15 Nov 1995
+Internet-Draft  SSH (Secure Shell) Remote Login Protocol15 November 1995
 
 
-        This authentication method trusts the remote host (root on the
         remote host can pretend to be any other user on that host), the
         name services, and partially the network: anyone who can see
         packets coming out from the server machine can do IP-spoofing
@@ -612,15 +611,15 @@ Internet-Draft  SSH (Secure Shell) Remote Login Protocol     15 Nov 1995
         The client decrypts the challenge using its private host key,
         concatenates this with the session id, and computes an MD5
         checksum of the resulting 48 bytes.  The MD5 output is returned
+        as 16 bytes in a SSH_CMSG_AUTH_RSA_RESPONSE message.  (MD5 is
 
 
 
 Ylonen                                                         [Page 11]
 
-Internet-Draft  SSH (Secure Shell) Remote Login Protocol     15 Nov 1995
+Internet-Draft  SSH (Secure Shell) Remote Login Protocol15 November 1995
 
 
-        as 16 bytes in a SSH_CMSG_AUTH_RSA_RESPONSE message.  (MD5 is
         used to deter chosen plaintext attacks against RSA; the session
         id binds it to a specific session).
 
@@ -668,15 +667,15 @@ Internet-Draft  SSH (Secure Shell) Remote Login Protocol     15 Nov 1995
 
         The client decrypts the challenge using its private key, con-
         catenates it with the session id, and computes an MD5 checksum
+        of the resulting 48 bytes.  The MD5 output is returned as 16
 
 
 
 Ylonen                                                         [Page 12]
 
-Internet-Draft  SSH (Secure Shell) Remote Login Protocol     15 Nov 1995
+Internet-Draft  SSH (Secure Shell) Remote Login Protocol15 November 1995
 
 
-        of the resulting 48 bytes.  The MD5 output is returned as 16
         bytes in a SSH_CMSG_AUTH_RSA_RESPONSE message.  (Note that the
         MD5 is necessary to avoid chosen plaintext attacks against RSA;
         the session id binds it to a specific session.)
@@ -724,15 +723,14 @@ Preparatory Operations
    returns SSH_SMSG_FAILURE.  It is expected that new message types
    might be added to this phase in future.
 
+   The following messages are currently defined for this phase.
 
 
 
 Ylonen                                                         [Page 13]
 
-Internet-Draft  SSH (Secure Shell) Remote Login Protocol     15 Nov 1995
+Internet-Draft  SSH (Secure Shell) Remote Login Protocol15 November 1995
 
-
-   The following messages are currently defined for this phase.
 
    SSH_CMSG_REQUEST_COMPRESSION
         Requests that compression be enabled for this session.  A gzip-
@@ -781,14 +779,15 @@ Interactive Session and Exchange of Data
    the client machine, and any input available from stdin on the client
    machine is forwarded to the program on the server machine.
 
+   All exchange is asynchronous; either side can send at any time, and
+
 
 
 Ylonen                                                         [Page 14]
 
-Internet-Draft  SSH (Secure Shell) Remote Login Protocol     15 Nov 1995
+Internet-Draft  SSH (Secure Shell) Remote Login Protocol15 November 1995
 
 
-   All exchange is asynchronous; either side can send at any time, and
    there are no acknowledgements (TCP/IP already provides reliable tran-
    sport, and the packet protocol protects against tampering or IP
    spoofing).
@@ -836,15 +835,15 @@ Internet-Draft  SSH (Secure Shell) Remote Login Protocol     15 Nov 1995
         number.
 
    SSH_MSG_PORT_OPEN
+        Indicates that a connection has been made to a port on the
 
 
 
 Ylonen                                                         [Page 15]
 
-Internet-Draft  SSH (Secure Shell) Remote Login Protocol     15 Nov 1995
+Internet-Draft  SSH (Secure Shell) Remote Login Protocol15 November 1995
 
 
-        Indicates that a connection has been made to a port on the
         server side for which forwarding has been requested.  Arguments
         are server side channel number, host name to connect to, and
         port to connect to.  The client should send back either
@@ -892,15 +891,15 @@ Internet-Draft  SSH (Secure Shell) Remote Login Protocol     15 Nov 1995
 
    SSH_CMSG_EOF
         Indicates that the client has encountered EOF while reading
+        standard input.  The server will allow any buffered input data
 
 
 
 Ylonen                                                         [Page 16]
 
-Internet-Draft  SSH (Secure Shell) Remote Login Protocol     15 Nov 1995
+Internet-Draft  SSH (Secure Shell) Remote Login Protocol15 November 1995
 
 
-        standard input.  The server will allow any buffered input data
         to drain, and will then close the input to the program.
 
    SSH_CMSG_WINDOW_SIZE
@@ -948,15 +947,14 @@ Internet-Draft  SSH (Secure Shell) Remote Login Protocol     15 Nov 1995
         This is send by the client to indicate that a channel previously
         closed by the server has now been closed on the client side as
         well.  The argument indicates the server channel number.  The
+        server frees the channel.
 
 
 
 Ylonen                                                         [Page 17]
 
-Internet-Draft  SSH (Secure Shell) Remote Login Protocol     15 Nov 1995
+Internet-Draft  SSH (Secure Shell) Remote Login Protocol15 November 1995
 
-
-        server frees the channel.
 
    Any unsupported messages during interactive mode cause the connection
    to be terminated with SSH_MSG_DISCONNECT and an error message.  Com-
@@ -1004,16 +1002,15 @@ Detailed Description of Packet Types and Formats
 
    The supported packet types and the corresponding message numbers are
    given in the following table.  Messages with _MSG_ in their name may
+   be sent by either side.  Messages with _CMSG_ are only sent by the
+   client, and messages with _SMSG_ only by the server.
 
 
 
 Ylonen                                                         [Page 18]
 
-Internet-Draft  SSH (Secure Shell) Remote Login Protocol     15 Nov 1995
+Internet-Draft  SSH (Secure Shell) Remote Login Protocol15 November 1995
 
-
-   be sent by either side.  Messages with _CMSG_ are only sent by the
-   client, and messages with _SMSG_ only by the server.
 
    A packet may contain additional data after the arguments specified
    below.  Any such data should be ignored by the receiver.  However, it
@@ -1060,17 +1057,16 @@ Internet-Draft  SSH (Secure Shell) Remote Login Protocol     15 Nov 1995
    3 SSH_CMSG_SESSION_KEY
 
         1 byte       cipher_type (must be one of the supported values)
+        8 bytes      anti_spoofing_cookie (must match data sent by the server)
+        mp-int       double-encrypted session key
+        32-bit int   protocol_flags
 
 
 
 Ylonen                                                         [Page 19]
 
-Internet-Draft  SSH (Secure Shell) Remote Login Protocol     15 Nov 1995
+Internet-Draft  SSH (Secure Shell) Remote Login Protocol15 November 1995
 
-
-        8 bytes      anti_spoofing_cookie (must match data sent by the server)
-        mp-int       double-encrypted session key
-        32-bit int   protocol_flags
 
         Sent by the client as the first message in the session.  Selects
         the cipher to use, and sends the encrypted session key to the
@@ -1116,18 +1112,18 @@ Internet-Draft  SSH (Secure Shell) Remote Login Protocol     15 Nov 1995
         so, responds with SSH_SMSG_AUTH_RSA_CHALLENGE.  Otherwise, it
         responds with SSH_SMSG_FAILURE.  The client often tries several
         different keys in sequence until one supported by the server is
+        found.  Authentication is accepted if the client gives the
+        correct response to the challenge.  The server is free to add
+        other criteria for authentication, such as a requirement that
+        the connection must come from a certain host.  Such additions
 
 
 
 Ylonen                                                         [Page 20]
 
-Internet-Draft  SSH (Secure Shell) Remote Login Protocol     15 Nov 1995
+Internet-Draft  SSH (Secure Shell) Remote Login Protocol15 November 1995
 
 
-        found.  Authentication is accepted if the client gives the
-        correct response to the challenge.  The server is free to add
-        other criteria for authentication, such as a requirement that
-        the connection must come from a certain host.  Such additions
         are not visible at the protocol level.  Supporting this authen-
         tication method is optional but recommended.
 
@@ -1172,18 +1168,18 @@ Internet-Draft  SSH (Secure Shell) Remote Login Protocol     15 Nov 1995
         32-bit int   terminal width, columns (e.g., 80)
         32-bit int   terminal width, pixels (0 if no graphics) (e.g., 480)
         32-bit int   terminal height, pixels (0 if no graphics) (e.g., 640)
+        n bytes      tty modes encoded in binary
+
+        Requests a pseudo-terminal to be allocated for this command.
+        This message can be used regardless of whether the session will
 
 
 
 Ylonen                                                         [Page 21]
 
-Internet-Draft  SSH (Secure Shell) Remote Login Protocol     15 Nov 1995
+Internet-Draft  SSH (Secure Shell) Remote Login Protocol15 November 1995
 
 
-        n bytes      tty modes encoded in binary
-
-        Requests a pseudo-terminal to be allocated for this command.
-        This message can be used regardless of whether the session will
         later execute the shell or a command.  If a pty has been
         requested with this message, the shell or command will run on a
         pty.  Otherwise it will communicate with the server using pipes,
@@ -1228,17 +1224,17 @@ Internet-Draft  SSH (Secure Shell) Remote Login Protocol     15 Nov 1995
         Starts a shell (command interpreter), and enters interactive
         session mode.
 
+   13 SSH_CMSG_EXEC_CMD
+
+        string   command to execute
+
 
 
 
 Ylonen                                                         [Page 22]
 
-Internet-Draft  SSH (Secure Shell) Remote Login Protocol     15 Nov 1995
+Internet-Draft  SSH (Secure Shell) Remote Login Protocol15 November 1995
 
-
-   13 SSH_CMSG_EXEC_CMD
-
-        string   command to execute
 
         Starts executing the given command, and enters interactive ses-
         sion mode.  On UNIX, the command is run as "<shell> -c <com-
@@ -1285,16 +1281,17 @@ Internet-Draft  SSH (Secure Shell) Remote Login Protocol     15 Nov 1995
 
         string   data
 
+        Delivers data from the server that was read from the standard
+        error of the shell or program running on the server side.  This
+        message can only be used in the interactive session mode.  No
+
 
 
 Ylonen                                                         [Page 23]
 
-Internet-Draft  SSH (Secure Shell) Remote Login Protocol     15 Nov 1995
+Internet-Draft  SSH (Secure Shell) Remote Login Protocol15 November 1995
 
 
-        Delivers data from the server that was read from the standard
-        error of the shell or program running on the server side.  This
-        message can only be used in the interactive session mode.  No
         acknowledgement is sent for this message.
 
    19 SSH_CMSG_EOF
@@ -1340,17 +1337,16 @@ Internet-Draft  SSH (Secure Shell) Remote Login Protocol     15 Nov 1995
 
         This message indicates that an earlier channel open request by
         the other side has failed or has been denied.  Remote_channel is
+        the channel number given in the original request.
+
+   23 SSH_MSG_CHANNEL_DATA
 
 
 
 Ylonen                                                         [Page 24]
 
-Internet-Draft  SSH (Secure Shell) Remote Login Protocol     15 Nov 1995
+Internet-Draft  SSH (Secure Shell) Remote Login Protocol15 November 1995
 
-
-        the channel number given in the original request.
-
-   23 SSH_MSG_CHANNEL_DATA
 
         32-bit int   remote_channel
         string       data
@@ -1396,17 +1392,17 @@ Internet-Draft  SSH (Secure Shell) Remote Login Protocol     15 Nov 1995
         session mode to indicate that a client has connected the fake X
         server.  Local_channel is the channel number that the server has
         allocated for the connection.  The client should try to open a
+        connection to the real X server, and respond with
+        SSH_MSG_CHANNEL_OPEN_CONFIRMATION or
+        SSH_MSG_CHANNEL_OPEN_FAILURE.
+
 
 
 
 Ylonen                                                         [Page 25]
 
-Internet-Draft  SSH (Secure Shell) Remote Login Protocol     15 Nov 1995
+Internet-Draft  SSH (Secure Shell) Remote Login Protocol15 November 1995
 
-
-        connection to the real X server, and respond with
-        SSH_MSG_CHANNEL_OPEN_CONFIRMATION or
-        SSH_MSG_CHANNEL_OPEN_FAILURE.
 
         The field originator_string is present if both sides specified
         SSH_PROTOFLAG_HOST_IN_FWD_OPEN in the protocol flags.  It con-
@@ -1452,18 +1448,17 @@ Internet-Draft  SSH (Secure Shell) Remote Login Protocol     15 Nov 1995
         forwarding with SSH_CMSG_PORT_FORWARD_REQUEST.
 
         The field originator_string is present if both sides specified
+        SSH_PROTOFLAG_HOST_IN_FWD_OPEN in the protocol flags.  It con-
+        tains a description of the host originating the connection.
+
+   30 SSH_CMSG_AGENT_REQUEST_FORWARDING
 
 
 
 Ylonen                                                         [Page 26]
 
-Internet-Draft  SSH (Secure Shell) Remote Login Protocol     15 Nov 1995
+Internet-Draft  SSH (Secure Shell) Remote Login Protocol15 November 1995
 
-
-        SSH_PROTOFLAG_HOST_IN_FWD_OPEN in the protocol flags.  It con-
-        tains a description of the host originating the connection.
-
-   30 SSH_CMSG_AGENT_REQUEST_FORWARDING
 
         (no arguments)
 
@@ -1508,19 +1503,19 @@ Internet-Draft  SSH (Secure Shell) Remote Login Protocol     15 Nov 1995
 
    34 SSH_CMSG_X11_REQUEST_FORWARDING
 
-
-
-
-Ylonen                                                         [Page 27]
-
-Internet-Draft  SSH (Secure Shell) Remote Login Protocol     15 Nov 1995
-
-
         string       x11_authentication_protocol
         string       x11_authentication_data
         32-bit int   screen number (if SSH_PROTOFLAG_SCREEN_NUMBER)
 
         Sent by the client during the preparatory phase, this message
+
+
+
+Ylonen                                                         [Page 27]
+
+Internet-Draft  SSH (Secure Shell) Remote Login Protocol15 November 1995
+
+
         requests that the server create a fake X11 display and set the
         DISPLAY environment variable accordingly.  An internet-domain
         display is preferable.  The given authentication protocol and
@@ -1564,18 +1559,18 @@ Internet-Draft  SSH (Secure Shell) Remote Login Protocol     15 Nov 1995
         is not.  The server responds with SSH_SMSG_FAILURE or
         SSH_SMSG_AUTH_RSA_CHALLENGE.  The client must respond to the
         challenge with the proper SSH_CMSG_AUTH_RSA_RESPONSE.  The
+        server then responds with success if access was granted, or
+        failure if the client gave a wrong response.  Supporting this
+        authentication method is optional but recommended in most
+        environments.
+
 
 
 
 Ylonen                                                         [Page 28]
 
-Internet-Draft  SSH (Secure Shell) Remote Login Protocol     15 Nov 1995
+Internet-Draft  SSH (Secure Shell) Remote Login Protocol15 November 1995
 
-
-        server then responds with success if access was granted, or
-        failure if the client gave a wrong response.  Supporting this
-        authentication method is optional but recommended in most
-        environments.
 
    36 SSH_MSG_DEBUG
 
@@ -1608,6 +1603,16 @@ Internet-Draft  SSH (Secure Shell) Remote Login Protocol     15 Nov 1995
         still be uncompressed, but all further packets in either direc-
         tion will be compressed by gzip.
 
+   38 SSH_CMSG_MAX_PACKET_SIZE
+
+        32-bit int   maximum packet size, bytes (4096-1024k)
+
+        This message can be sent by the client in the preparatory opera-
+        tions phase.  The server responds with SSH_SMSG_FAILURE if it
+        does not support limiting packet size, or with SSH_SMSG_SUCCESS
+        if it has limited the maximum packet size (as determined by the
+        value in the size field) to the specified value.
+
 
 Encoding of Terminal Modes
 
@@ -1615,19 +1620,19 @@ Encoding of Terminal Modes
    byte stream.  It is intended that the coding be portable across dif-
    ferent environments.
 
-   The tty mode description is a stream of bytes.  The stream consists
-   of opcode-argument pairs.  It is terminated by opcode TTY_OP_END (0).
-   Opcodes 1-127 have one-byte arguments.  Opcodes 128-159 have 32-bit
-   integer arguments (stored msb first).  Opcodes 160-255 are not yet
-   defined, and cause parsing to stop (they should only be used after
 
 
 
 Ylonen                                                         [Page 29]
 
-Internet-Draft  SSH (Secure Shell) Remote Login Protocol     15 Nov 1995
+Internet-Draft  SSH (Secure Shell) Remote Login Protocol15 November 1995
 
 
+   The tty mode description is a stream of bytes.  The stream consists
+   of opcode-argument pairs.  It is terminated by opcode TTY_OP_END (0).
+   Opcodes 1-127 have one-byte arguments.  Opcodes 128-159 have 32-bit
+   integer arguments (stored msb first).  Opcodes 160-255 are not yet
+   defined, and cause parsing to stop (they should only be used after
    any other data).
 
    The client puts in the stream any modes it knows about, and the
@@ -1672,18 +1677,17 @@ Internet-Draft  SSH (Secure Shell) Remote Login Protocol     15 Nov 1995
    8 VSTART
         Continues paused output (normally ^Q).
 
-   9 VSTOP
-        Pauses output (^S).
-
-   10 VSUSP
-
 
 
 Ylonen                                                         [Page 30]
 
-Internet-Draft  SSH (Secure Shell) Remote Login Protocol     15 Nov 1995
+Internet-Draft  SSH (Secure Shell) Remote Login Protocol15 November 1995
 
 
+   9 VSTOP
+        Pauses output (^S).
+
+   10 VSUSP
         Suspends the current program.
 
    11 VDSUSP
@@ -1728,17 +1732,17 @@ Internet-Draft  SSH (Secure Shell) Remote Login Protocol     15 Nov 1995
 
    37 IUCLC
 
-   38 IXON
-
-   39 IXANY
-
 
 
 
 Ylonen                                                         [Page 31]
 
-Internet-Draft  SSH (Secure Shell) Remote Login Protocol     15 Nov 1995
+Internet-Draft  SSH (Secure Shell) Remote Login Protocol15 November 1995
 
+
+   38 IXON
+
+   39 IXANY
 
    40 IXOFF
 
@@ -1785,16 +1789,16 @@ Internet-Draft  SSH (Secure Shell) Remote Login Protocol     15 Nov 1995
    75 ONLRET
 
 
-   90 CS7
-
-   91 CS8
-
 
 
 Ylonen                                                         [Page 32]
 
-Internet-Draft  SSH (Secure Shell) Remote Login Protocol     15 Nov 1995
+Internet-Draft  SSH (Secure Shell) Remote Login Protocol15 November 1995
 
+
+   90 CS7
+
+   91 CS8
 
    92 PARENB
 
@@ -1802,10 +1806,12 @@ Internet-Draft  SSH (Secure Shell) Remote Login Protocol     15 Nov 1995
 
 
    192 TTY_OP_ISPEED
-        Specifies the input baud rate in bits per second.
+        Specifies the input baud rate in bits per second (as a 32-bit
+        int, msb first).
 
    193 TTY_OP_OSPEED
-        Specifies the output baud rate in bits per second.
+        Specifies the output baud rate in bits per second (as a 32-bt
+        int, msb first).
 
 
 The Authentication Agent Protocol
@@ -1838,19 +1844,19 @@ The Authentication Agent Protocol
    protocol.
 
 
-   The following message types are currently defined:
-
-   1 SSH_AGENTC_REQUEST_RSA_IDENTITIES
-
-        (no arguments)
-
 
 
 
 Ylonen                                                         [Page 33]
 
-Internet-Draft  SSH (Secure Shell) Remote Login Protocol     15 Nov 1995
+Internet-Draft  SSH (Secure Shell) Remote Login Protocol15 November 1995
 
+
+   The following message types are currently defined:
+
+   1 SSH_AGENTC_REQUEST_RSA_IDENTITIES
+
+        (no arguments)
 
         Requests the agent to send a list of all RSA keys for which it
         can answer a challenge.
@@ -1895,19 +1901,18 @@ Internet-Draft  SSH (Secure Shell) Remote Login Protocol     15 Nov 1995
         to compute MD5 of the real challenge plus session id, and return
         the resulting 16 bytes in a SSH_AGENT_RSA_RESPONSE message.
 
+
+
+Ylonen                                                         [Page 34]
+
+Internet-Draft  SSH (Secure Shell) Remote Login Protocol15 November 1995
+
+
    4 SSH_AGENT_RSA_RESPONSE
 
         16 bytes   MD5 of decrypted challenge
 
         Answers an RSA authentication challenge.  The response is 16
-
-
-
-Ylonen                                                         [Page 34]
-
-Internet-Draft  SSH (Secure Shell) Remote Login Protocol     15 Nov 1995
-
-
         bytes:  the MD5 checksum of the 32-byte challenge.
 
    5 SSH_AGENT_FAILURE
@@ -1951,19 +1956,19 @@ Internet-Draft  SSH (Secure Shell) Remote Login Protocol     15 Nov 1995
         mp-int       public modulus
 
         Removes an RSA key from the agent.  The agent will no longer
-        accept challenges for this key and will not list it as a sup-
-        ported identity.  The agent responds with SSH_AGENT_SUCCESS or
-        SSH_AGENT_FAILURE.
-
-   If the agent receives a message that it does not understand, it
 
 
 
 Ylonen                                                         [Page 35]
 
-Internet-Draft  SSH (Secure Shell) Remote Login Protocol     15 Nov 1995
+Internet-Draft  SSH (Secure Shell) Remote Login Protocol15 November 1995
 
 
+        accept challenges for this key and will not list it as a sup-
+        ported identity.  The agent responds with SSH_AGENT_SUCCESS or
+        SSH_AGENT_FAILURE.
+
+   If the agent receives a message that it does not understand, it
    responds with SSH_AGENT_FAILURE.  This permits compatible future
    extensions.
 
@@ -2008,17 +2013,16 @@ References
    [RFC0791]
         J. Postel: Internet Protocol, RFC 791, USC/ISI, September 1981.
 
-   [RFC0793]
-        J. Postel: Transmission Control Protocol, RFC 793, USC/ISI, Sep-
-        tember 1981.
-
-
 
 
 Ylonen                                                         [Page 36]
 
-Internet-Draft  SSH (Secure Shell) Remote Login Protocol     15 Nov 1995
+Internet-Draft  SSH (Secure Shell) Remote Login Protocol15 November 1995
 
+
+   [RFC0793]
+        J. Postel: Transmission Control Protocol, RFC 793, USC/ISI, Sep-
+        tember 1981.
 
    [RFC1034]
         P. Mockapetris: Domain Names - Concepts and Facilities, RFC
@@ -2065,20 +2069,19 @@ Security Considerations
 
    o    DNS spoofing is made ineffective (by host keys).
 
-   o    Routing spoofing is made ineffective (by host keys).
-
-   o    All data is encrypted with strong algorithms to make
-
 
 
 Ylonen                                                         [Page 37]
 
-Internet-Draft  SSH (Secure Shell) Remote Login Protocol     15 Nov 1995
+Internet-Draft  SSH (Secure Shell) Remote Login Protocol15 November 1995
 
 
-        eavesdropping as difficult as possible.  This includes encrypt-
-        ing any authentication information such as passwords.  The
-        information for decrypting session keys is destroyed every hour.
+   o    Routing spoofing is made ineffective (by host keys).
+
+   o    All data is encrypted with strong algorithms to make eavesdrop-
+        ping as difficult as possible.  This includes encrypting any
+        authentication information such as passwords.  The information
+        for decrypting session keys is destroyed every hour.
 
    o    Strong authentication methods: .rhosts combined with RSA host
         authentication, and pure RSA authentication.
@@ -2120,19 +2123,20 @@ Internet-Draft  SSH (Secure Shell) Remote Login Protocol     15 Nov 1995
    underlying cryptographic algorithms.  The RSA algorithm is used for
    authentication key exchange.  It is widely believed to be secure.  Of
    the algorithms used to encrypt the session, DES has a rather small
-   key these days, probably permitting governments and organized crimi-
-   nals to break it in very short time with specialized hardware.  3DES
-   is probably safe (but slower).  IDEA is widely believed to be secure.
-   People have varying degrees of confidence in the other algorithms.
+   key these days, probably permitting governments and organized
 
 
 
 Ylonen                                                         [Page 38]
 
-Internet-Draft  SSH (Secure Shell) Remote Login Protocol     15 Nov 1995
+Internet-Draft  SSH (Secure Shell) Remote Login Protocol15 November 1995
 
 
-   This program is not secure if used with no encryption at all.
+   criminals to break it in very short time with specialized hardware.
+   3DES is probably safe (but slower).  IDEA is widely believed to be
+   secure.  People have varying degrees of confidence in the other algo-
+   rithms.  This program is not secure if used with no encryption at
+   all.
 
 
 Additional Information
@@ -2154,10 +2158,6 @@ Author's Address
    Phone: +358-0-451-3374
    Fax: +358-0-451-3293
    EMail: ylo@cs.hut.fi
-
-
-
-
 
 
 

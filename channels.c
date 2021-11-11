@@ -70,7 +70,7 @@ arbitrary tcp/ip connections, and the authentication agent connection.
  */
 
 #include "includes.h"
-#ifndef HAVE_GETHOSTNAME
+#if !defined(HAVE_GETHOSTNAME) || defined(HPSUX_NONSTANDARD_X11_KLUDGE)
 #include <sys/utsname.h>
 #endif
 #include "ssh.h"
@@ -78,7 +78,6 @@ arbitrary tcp/ip connections, and the authentication agent connection.
 #include "xmalloc.h"
 #include "buffer.h"
 #include "authfd.h"
-#include "uidswap.h"
 
 /* Directory in which the fake unix-domain X11 displays reside. */
 #define X11_DIR "/tmp/.X11-unix"
@@ -282,7 +281,7 @@ void channel_prepare_select(fd_set *readset, fd_set *writeset)
 	  break;
 
 	case SSH_CHANNEL_OPEN:
-	  if (buffer_len(&ch->input) < 32768)
+	  if (buffer_len(&ch->input) < packet_max_size() / 2)
 	    FD_SET(ch->sock, readset);
 	  if (buffer_len(&ch->output) > 0)
 	    FD_SET(ch->sock, writeset);
@@ -503,8 +502,9 @@ void channel_after_select(fd_set *readset, fd_set *writeset)
 	      newsock = accept(ch->sock, &addr, &len);
 	      if (newsock < 0)
 		error("Accept from authentication socket failed");
-	      (void)channel_allocate(SSH_CHANNEL_AUTH_SOCKET_FD, newsock,
-				     xstrdup("accepted auth socket"));
+	      else
+		(void)channel_allocate(SSH_CHANNEL_AUTH_SOCKET_FD, newsock,
+				       xstrdup("accepted auth socket"));
 	    }
 	  break;
 
@@ -515,7 +515,10 @@ void channel_after_select(fd_set *readset, fd_set *writeset)
 	  /* Read available incoming data and append it to buffer. */
 	  if (FD_ISSET(ch->sock, readset))
 	    {
-	      len = read(ch->sock, buf, sizeof(buf));
+	      len = sizeof(buf);
+	      if (len > packet_max_size() / 4)
+		len = packet_max_size() / 4;
+	      len = read(ch->sock, buf, len);
 	      if (len <= 0)
 		{
 		  buffer_consume(&ch->output, buffer_len(&ch->output));
@@ -571,6 +574,11 @@ void channel_output_poll()
 
   for (i = 0; i < channels_alloc; i++)
     {
+      /* If we have very much data going to the output socket, don't send more
+	 now. */
+      if (!packet_not_very_much_data_to_write())
+	break; /* Don't send any more data now. */
+
       ch = &channels[i];
       /* We are only interested in channels that can have buffered incoming
 	 data. */
@@ -592,6 +600,8 @@ void channel_output_poll()
 	    {
 	      if (len > 16384)
 		len = 16384;  /* Keep the packets at reasonable size. */
+	      if (len > packet_max_size() / 2)
+		len = packet_max_size() / 2;
 	    }
 	  packet_start(SSH_MSG_CHANNEL_DATA);
 	  packet_put_int(ch->remote_id);
@@ -649,9 +659,9 @@ int channel_not_very_much_buffered_data()
 	case SSH_CHANNEL_AUTH_FD:
 	  continue;
 	case SSH_CHANNEL_OPEN:
-	  if (buffer_len(&ch->input) > 32768)
+	  if (buffer_len(&ch->input) > 32000)
 	    return 0;
-	  if (buffer_len(&ch->output) > 32768)
+	  if (buffer_len(&ch->output) > 32000)
 	    return 0;
 	  continue;
 	case SSH_CHANNEL_INPUT_DRAINING:
@@ -1146,7 +1156,7 @@ char *x11_create_display_inet(int screen_number)
   /* Set up a suitable value for the DISPLAY variable. */
 #ifdef HPSUX_NONSTANDARD_X11_KLUDGE
   /* HPSUX has some special shared memory stuff in their X server, which
-     appears to be enable if the host name matches that of the local machine.
+     appears to be enabled if the host name matches that of the local machine.
      However, it can be circumvented by using the IP address of the local
      machine instead.  */
   if (gethostname(hostname, sizeof(hostname)) < 0)
@@ -1157,7 +1167,7 @@ char *x11_create_display_inet(int screen_number)
     hp = gethostbyname(hostname);
     if (!hp->h_addr_list[0])
       {
-	error("Could not server IP address for %.200d.", hostname);
+	error("Could not get server IP address for %.200d.", hostname);
 	packet_send_debug("Could not get server IP address for %.200d.", 
 			  hostname);
 	shutdown(sock, 2);
@@ -1244,7 +1254,19 @@ void x11_input_open()
 	}
       /* Connect it to the display socket. */
       ssun.sun_family = AF_UNIX;
+#ifdef HPSUX_NONSTANDARD_X11_KLUDGE
+      {
+	struct utsname utsbuf;
+	/* HPSUX stores unix-domain sockets in /tmp/.X11-unix/`hostname`0 
+	   instead of the normal /tmp/.X11-unix/X0. */
+	if (uname(&utsbuf) < 0)
+	  fatal("uname: %.100s", strerror(errno));
+	sprintf(ssun.sun_path, "%.20s/%.64s%d",
+		X11_DIR, utsbuf.nodename, display_number);
+      }
+#else /* HPSUX_NONSTANDARD_X11_KLUDGE */
       sprintf(ssun.sun_path, "%.80s/X%d", X11_DIR, display_number);
+#endif /* HPSUX_NONSTANDARD_X11_KLUDGE */
       if (connect(sock, (struct sockaddr *)&ssun, AF_UNIX_SIZE(ssun)) < 0)
 	{
 	  error("connect %.100s: %.100s", ssun.sun_path, strerror(errno));
@@ -1437,9 +1459,6 @@ char *auth_get_socket_name()
 void auth_input_request_forwarding(struct passwd *pw)
 {
   int pfd = get_permanent_fd(pw->pw_shell);
-#ifdef HAVE_UMASK
-  mode_t savedumask;
-#endif /* HAVE_UMASK */
   
   if (pfd < 0) 
     {
@@ -1465,22 +1484,8 @@ void auth_input_request_forwarding(struct passwd *pw)
       strncpy(sunaddr.sun_path, channel_forwarded_auth_socket_name, 
 	      sizeof(sunaddr.sun_path));
 
-#ifdef HAVE_UMASK
-      savedumask = umask(0077);
-#endif /* HAVE_UMASK */
-
-      /* Temporarily use a privileged uid. */
-      temporarily_use_uid(pw->pw_uid);
-
       if (bind(sock, (struct sockaddr *)&sunaddr, AF_UNIX_SIZE(sunaddr)) < 0)
 	packet_disconnect("bind: %.100s", strerror(errno));
-
-      /* Restore the privileged uid. */
-      restore_uid();
-
-#ifdef HAVE_UMASK
-      umask(savedumask);
-#endif /* HAVE_UMASK */
 
       /* Start listening on the socket. */
       if (listen(sock, 5) < 0)

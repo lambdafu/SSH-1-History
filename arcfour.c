@@ -1,12 +1,15 @@
 /*
 
-Alleged RC4 (based on the Usenet posting in Spring-95)
+ARCFOUR cipher (based on a cipher posted on the Usenet in Spring-95).
+This cipher is widely believed and has been tested to be equivalent
+with the RC4 cipher from RSA Data Security, Inc.  (RC4 is a trademark
+of RSA Data Security)
 
 */
 
 /*
- * $Id: rc4.c,v 1.2 1995/07/13 01:29:59 ylo Exp $
- * $Log: rc4.c,v $
+ * $Id: arcfour.c,v 1.2 1995/07/13 01:29:59 ylo Exp $
+ * $Log: arcfour.c,v $
  * Revision 1.2  1995/07/13  01:29:59  ylo
  * 	Added cvs log.
  *
@@ -14,9 +17,10 @@ Alleged RC4 (based on the Usenet posting in Spring-95)
  */
 
 #include "includes.h"
-#include "rc4.h"
+#include "arcfour.h"
 
-void rc4_init(RC4Context *ctx, const unsigned char *key, unsigned int key_len)
+void arcfour_init(ArcfourContext *ctx, const unsigned char *key, 
+		  unsigned int key_len)
 {
   unsigned int t, u;
   unsigned int keyindex;
@@ -45,7 +49,7 @@ void rc4_init(RC4Context *ctx, const unsigned char *key, unsigned int key_len)
     }
 }
 
-inline unsigned int rc4_byte(RC4Context *ctx)
+inline unsigned int arcfour_byte(ArcfourContext *ctx)
 {
   unsigned int x;
   unsigned int y;
@@ -64,16 +68,16 @@ inline unsigned int rc4_byte(RC4Context *ctx)
   return state[(sx + sy) & 0xff];
 }
 
-void rc4_encrypt(RC4Context *ctx, unsigned char *dest, 
-		 const unsigned char *src, unsigned int len)
+void arcfour_encrypt(ArcfourContext *ctx, unsigned char *dest, 
+		     const unsigned char *src, unsigned int len)
 {
   unsigned int i;
   for (i = 0; i < len; i++)
-    dest[i] = src[i] ^ rc4_byte(ctx);
+    dest[i] = src[i] ^ arcfour_byte(ctx);
 }
 
-void rc4_decrypt(RC4Context *ctx, unsigned char *dest, 
+void arcfour_decrypt(ArcfourContext *ctx, unsigned char *dest, 
 		 const unsigned char *src, unsigned int len)
 {
-  rc4_encrypt(ctx, dest, src, len);
+  arcfour_encrypt(ctx, dest, src, len);
 }
