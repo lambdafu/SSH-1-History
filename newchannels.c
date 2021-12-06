@@ -16,8 +16,17 @@ arbitrary tcp/ip connections, and the authentication agent connection.
 */
 
 /*
- * $Id: channels.c,v 1.13 1995/10/02 01:20:08 ylo Exp $
- * $Log: channels.c,v $
+ * $Id: newchannels.c,v 1.2 1996/05/06 09:53:24 huima Exp $
+ * $Log: newchannels.c,v $
+ * Revision 1.2  1996/05/06 09:53:24  huima
+ * Fixed a major in the channels allocation.
+ *
+ * Revision 1.1  1996/04/22  23:43:52  huima
+ * New channels code added to the repository.
+ *
+ * Revision 1.1.1.1  1996/02/18  21:38:12  ylo
+ * 	Imported ssh-1.2.13.
+ *
  * Revision 1.13  1995/10/02  01:20:08  ylo
  * 	Added a cast to avoid compiler warning.
  *
@@ -78,6 +87,7 @@ arbitrary tcp/ip connections, and the authentication agent connection.
 #include "xmalloc.h"
 #include "buffer.h"
 #include "authfd.h"
+#include "emulate.h"
 
 /* Directory in which the fake unix-domain X11 displays reside. */
 #define X11_DIR "/tmp/.X11-unix"
@@ -91,13 +101,24 @@ arbitrary tcp/ip connections, and the authentication agent connection.
 #define SSH_CHANNEL_PORT_LISTENER	2 /* Listening on a port. */
 #define SSH_CHANNEL_OPENING		3 /* waiting for confirmation */
 #define SSH_CHANNEL_OPEN		4 /* normal open two-way channel */
-#define SSH_CHANNEL_CLOSED		5 /* waiting for close confirmation */
+/* obsolete SSH_CHANNEL_CLOSED		5    waiting for close confirmation */
 #define SSH_CHANNEL_AUTH_FD		6 /* authentication fd */
 #define SSH_CHANNEL_AUTH_SOCKET		7 /* authentication socket */
 #define SSH_CHANNEL_AUTH_SOCKET_FD	8 /* connection to auth socket */
 #define SSH_CHANNEL_X11_OPEN		9 /* reading first X11 packet */
-#define SSH_CHANNEL_INPUT_DRAINING	10 /* sending remaining data to conn */
-#define SSH_CHANNEL_OUTPUT_DRAINING	11 /* sending remaining data to app */
+
+/* Status flags */
+
+#define PHII_IN     0x0001
+#define PHII_OUT    0x0002
+#define EPSILON_S   0x0004
+#define EPSILON_R   0x0008
+#define KAPPA_S     0x0010
+#define KAPPA_R     0x0020
+#define BETA        0x0040
+#define GAMMA       0x0080
+
+#define TAU         0x003f
 
 /* Data structure for channel data.  This is iniailized in channel_allocate
    and cleared in channel_free. */
@@ -106,9 +127,13 @@ typedef struct
 {
   int type;
   int sock;
-  int remote_id;
+
+  int remote_id, local_id;
+  int status_flags; /* for keeping book on the internal state */
+
   Buffer input;
   Buffer output;
+
   char path[200]; /* path for unix domain sockets, or host name for forwards */
   int host_port;  /* port to connect for forwards */
   int listening_port; /* port being listened for forwards */
@@ -123,6 +148,10 @@ static Channel *channels = NULL;
    initialized (at least the type field); unused slots are marked with
    type SSH_CHANNEL_FREE. */
 static int channels_alloc = 0;
+
+/* Number of currently used channels.  Used to determine if we should
+   expand the array. */
+static int channels_used = 0;
 
 /* Maximum file descriptor value used in any of the channels.  This is updated
    in channel_allocate. */
@@ -187,7 +216,7 @@ void channel_permit_all_opens()
 
 int channel_allocate(int type, int sock, char *remote_name)
 {
-  int i, old_channels;
+  int i;
 
   /* Update the maximum file descriptor value. */
   if (sock > channel_max_fd_value)
@@ -206,36 +235,43 @@ int channel_allocate(int type, int sock, char *remote_name)
       fatal_add_cleanup((void (*)(void *))channel_stop_listening, NULL);
     }
 
+  i = 0;
+
+  if (channels_used == channels_alloc)
+    {
+      /* There are no free slots.  Must expand the array. */
+      channels_alloc += 10;
+      debug("Expanding the array...\n");
+      channels = xrealloc(channels, channels_alloc * sizeof(Channel));
+      for (i = channels_used; i < channels_alloc; i++)
+	channels[i].type = SSH_CHANNEL_FREE;
+      i = channels_used;
+      debug("Array now %d channels [first free at %d].\n",
+	    channels_alloc, i);
+    }
+
   /* Try to find a free slot where to put the new channel. */
-  for (i = 0; i < channels_alloc; i++)
-    if (channels[i].type == SSH_CHANNEL_FREE)
-      {
-	/* Found a free slot.  Initialize the fields and return its number. */
-	buffer_init(&channels[i].input);
-	buffer_init(&channels[i].output);
-	channels[i].type = type;
-	channels[i].sock = sock;
-	channels[i].remote_id = -1;
-	channels[i].remote_name = remote_name;
-	return i;
-      }
-
-  /* There are no free slots.  Must expand the array. */
-  old_channels = channels_alloc;
-  channels_alloc += 10;
-  channels = xrealloc(channels, channels_alloc * sizeof(Channel));
-  for (i = old_channels; i < channels_alloc; i++)
-    channels[i].type = SSH_CHANNEL_FREE;
-
-  /* We know that the next one after the old maximum channel number is now
-     available.  Initialize and return its number. */
-  buffer_init(&channels[old_channels].input);
-  buffer_init(&channels[old_channels].output);
-  channels[old_channels].type = type;
-  channels[old_channels].sock = sock;
-  channels[old_channels].remote_id = -1;
-  channels[old_channels].remote_name = remote_name;
-  return old_channels;
+  while (i < channels_alloc)
+    {
+      if (channels[i].type == SSH_CHANNEL_FREE)
+	{
+	  /* Found a free slot. 
+	     Initialize the fields and return its number. */
+	  buffer_init(&channels[i].input);
+	  buffer_init(&channels[i].output);
+	  channels[i].type = type;
+	  channels[i].sock = sock;
+	  channels[i].remote_id = -1;
+	  channels[i].remote_name = remote_name;
+	  channels[i].status_flags = 0;
+	  channels[i].local_id = i;
+	  channels_used++;
+	  debug("Allocated channel %d.\n", i);
+	  return i;
+	}
+      i++;
+    }
+  fatal ("Internal bug in channel_allocate.");
 }
 
 /* Free the channel and close its socket. */
@@ -244,17 +280,221 @@ void channel_free(int channel)
 {
   assert(channel >= 0 && channel < channels_alloc &&
 	 channels[channel].type != SSH_CHANNEL_FREE);
-  shutdown(channels[channel].sock, 2);
   close(channels[channel].sock);
   buffer_free(&channels[channel].input);
   buffer_free(&channels[channel].output);
   channels[channel].type = SSH_CHANNEL_FREE;
+  channels_used--;
   if (channels[channel].remote_name)
     {
       xfree(channels[channel].remote_name);
       channels[channel].remote_name = NULL;
     }
 }
+
+/* Support for the new protocol */
+
+/* A channel can be freed when it has sent and received
+   input eof and output closed */
+
+void channel_check_termination(Channel *ch)
+{
+  if ((ch->status_flags & TAU) == TAU)
+    {
+#ifdef SUPPORT_OLD_CHANNELS
+      if ((emulation_information & EMULATE_OLD_CHANNEL_CODE)
+	  && !(ch->status_flags & BETA))
+	{
+	  ch->status_flags &= ~(KAPPA_R | EPSILON_R);
+	  debug("Discarding termination of channel %d.", ch->local_id);
+	  return;
+	}
+#endif
+      debug("Channel %d terminates.", ch->local_id);
+#ifdef SUPPORT_OLD_CHANNELS
+      if (emulation_information & EMULATE_OLD_CHANNEL_CODE)
+	if (ch->status_flags & GAMMA)
+	  {
+	    packet_start(SSH_MSG_CHANNEL_CLOSE_CONFIRMATION);
+	    packet_put_int(ch->remote_id);
+	    packet_send();
+	  }
+#endif
+      channel_free(ch->local_id);
+    }
+}
+
+/* If ieof has not yet been sent, send it */
+
+void channel_send_ieof(Channel *ch)
+{
+  if (!(ch->status_flags & EPSILON_S))
+    {
+      debug("Channel %d sends ieof.", ch->local_id);
+      ch->status_flags |= EPSILON_S;
+
+#ifdef SUPPORT_OLD_CHANNELS
+      /* This is SSH_MSG_CHANNEL_CLOSE in the old protocol */
+#endif
+
+      packet_start(SSH_MSG_CHANNEL_INPUT_EOF);
+      packet_put_int(ch->remote_id);
+      packet_send();
+
+#ifdef SUPPORT_OLD_CHANNELS
+      if (emulation_information & EMULATE_OLD_CHANNEL_CODE)
+	ch->status_flags |= KAPPA_S;
+#endif
+
+      channel_check_termination(ch);
+    }
+}
+
+/* If oclosed has not yet been sent, send it */
+#ifdef SUPPORT_OLD_CHANNELS
+/* This will be never called if we're emulating the old code */
+#endif
+
+void channel_send_oclosed(Channel *ch)
+{
+  
+  if (!(ch->status_flags & KAPPA_S))
+    {
+      debug("Channel %d sends oclosed.", ch->local_id);
+      ch->status_flags |= KAPPA_S;
+
+      packet_start(SSH_MSG_CHANNEL_OUTPUT_CLOSED);
+      packet_put_int(ch->remote_id);
+      packet_send();
+
+      channel_check_termination(ch);
+    }
+}
+
+/* Close input if hasn't been done yet. Input buffer is not discarded,
+   because we want to drain it over the channel. */
+
+#ifdef SUPPORT_OLD_CHANNELS
+void channel_close_output(Channel *ch);
+#endif
+
+void channel_close_input(Channel *ch)
+{
+  if (!(ch->status_flags & PHII_IN))
+    {
+      debug("Channel %d closes incoming data stream.", ch->local_id);
+      ch->status_flags |= PHII_IN;
+      shutdown(ch->sock, 0);
+#ifdef SUPPORT_OLD_CHANNELS
+      if (emulation_information & EMULATE_OLD_CHANNEL_CODE)
+	{
+	  channel_close_output(ch);
+	}
+#endif
+    }
+}
+
+/* Close output if it hasn't been done yet. Output buffer is
+   discarded, because we couldn't put it anywhere else (as the socket
+   is closed). Send info about the close immediately. */
+
+void channel_close_output(Channel *ch)
+{
+  if (!(ch->status_flags & PHII_OUT))
+    {
+      debug("Channel %d closes outgoing data stream.", ch->local_id);
+      ch->status_flags |= PHII_OUT;
+      shutdown(ch->sock, 1);
+      if (buffer_len(&ch->output))
+	buffer_consume(&ch->output, buffer_len(&ch->output));
+#ifdef SUPPORT_OLD_CHANNELS
+      if (emulation_information & EMULATE_OLD_CHANNEL_CODE)
+	{
+	  debug("This is emulation.");
+	  channel_close_input(ch);
+	}
+      else
+#endif
+	channel_send_oclosed(ch);
+      
+    }
+}
+
+/* Receive input eof. Nothing is done yet, because the output buffer
+   might want to drain away. */
+
+void channel_receive_ieof(Channel *ch)
+{
+  if (ch->status_flags & EPSILON_R)
+    packet_disconnect("Received double input eof.");
+
+  debug("Channel %d receives input eof.", ch->local_id);
+  ch->status_flags |= EPSILON_R;
+  channel_check_termination(ch);
+}
+
+/* Receive output closed. Input will be immediately closed,
+   because the other party is not interested in our packets. */
+
+void channel_receive_oclosed(Channel *ch)
+{
+  if (ch->status_flags & KAPPA_R)
+    packet_disconnect("Received double close.");
+
+  debug("Channel %d receives output closed.", ch->local_id);
+  ch->status_flags |= KAPPA_R;
+  channel_close_input(ch);
+  channel_check_termination(ch);
+}
+
+/* This is called after receiving CHANNEL_INPUT_EOF */
+
+void channel_ieof()
+{
+  int channel;
+  /* Get the channel number and verify it. */
+  channel = packet_get_int();
+  if (channel < 0 || channel >= channels_alloc ||
+      channels[channel].type == SSH_CHANNEL_FREE)
+    packet_disconnect("Received data for nonexistent channel %d.", channel);
+
+  channel_receive_ieof(&channels[channel]);
+}
+
+/* This is called after receiving CHANNEL_OUTPUT_CLOSED */
+void channel_oclosed()
+{
+  int channel;
+  /* Get the channel number and verify it. */
+  channel = packet_get_int();
+  if (channel < 0 || channel >= channels_alloc ||
+      channels[channel].type == SSH_CHANNEL_FREE)
+    packet_disconnect("Received data for nonexistent channel %d.", channel);
+
+  channel_receive_oclosed(&channels[channel]);
+}
+
+#ifdef SUPPORT_OLD_CHANNELS
+void channel_emulated_close(int set_beta)
+{
+  int channel;
+  
+  debug("Emulated close.");
+
+  channel = packet_get_int();
+  if (channel < 0 || channel >= channels_alloc ||
+      channels[channel].type == SSH_CHANNEL_FREE)
+    packet_disconnect("Received data for nonexistent channel %d.", channel);
+
+  if (set_beta)
+    channels[channel].status_flags |= BETA;
+  else
+    channels[channel].status_flags |= GAMMA;
+
+  channel_receive_ieof(&channels[channel]);  
+  channel_receive_oclosed(&channels[channel]);
+}
+#endif
 
 /* This is called just before select() to add any bits relevant to
    channels in the select bitmasks. */
@@ -279,36 +519,26 @@ void channel_prepare_select(fd_set *readset, fd_set *writeset)
 	case SSH_CHANNEL_AUTH_FD:
 	  FD_SET(ch->sock, readset);
 	  break;
-
+	  
 	case SSH_CHANNEL_OPEN:
-	  if (buffer_len(&ch->input) < packet_max_size() / 2)
+
+	  if ((buffer_len(&ch->input) < packet_max_size() / 2)
+	      && (!(ch->status_flags & PHII_IN)))
 	    FD_SET(ch->sock, readset);
-	  if (buffer_len(&ch->output) > 0)
-	    FD_SET(ch->sock, writeset);
-	  break;
 
-	case SSH_CHANNEL_INPUT_DRAINING:
-	  if (buffer_len(&ch->input) == 0)
-	    {
-	      packet_start(SSH_MSG_CHANNEL_CLOSE);
-	      packet_put_int(ch->remote_id);
-	      packet_send();
-	      ch->type = SSH_CHANNEL_CLOSED;
-	      debug("Closing channel %d after input drain.", i);
-	      break;
-	    }
-	  break;
+          if (!(ch->status_flags & PHII_OUT))
+            {
+              if (buffer_len(&ch->output) > 0) {
+                FD_SET(ch->sock, writeset);
+              } else {
+                if(ch->status_flags & EPSILON_R) {
+                  channel_close_output(ch);
+                }
+              }
+            }
 
-	case SSH_CHANNEL_OUTPUT_DRAINING:
-	  if (buffer_len(&ch->output) == 0)
-	    {
-	      /* debug("Freeing channel %d after output drain.", i); */
-	      channel_free(i);
-	      break;
-	    }
-	  FD_SET(ch->sock, writeset);
 	  break;
-
+	  
 	case SSH_CHANNEL_X11_OPEN:
 	  /* This is a special state for X11 authentication spoofing.  An
 	     opened X11 connection (when authentication spoofing is being
@@ -382,14 +612,17 @@ void channel_prepare_select(fd_set *readset, fd_set *writeset)
 	  log("X11 connection rejected because of wrong authentication.\r\n");
 	  buffer_clear(&ch->input);
 	  buffer_clear(&ch->output);
-	  close(ch->sock);
-	  ch->sock = -1;
-	  ch->type = SSH_CHANNEL_CLOSED;
-	  packet_start(SSH_MSG_CHANNEL_CLOSE);
-	  packet_put_int(ch->remote_id);
-	  packet_send();
+	  channel_close_input(ch);
+	  channel_close_output(ch);
+	  channel_send_ieof(ch);
+	  /* Output closed has been sent in close_output except if
+	     we're emulating the old code, but then we wouldn't send
+	     it anyway. */
+	  /* We will then wait until both closing packets have come,
+	     then the channel gets destroyed - and the socket
+	     closed. */
 	  break;
-
+	  
 	case SSH_CHANNEL_FREE:
 	default:
 	  continue;
@@ -403,7 +636,7 @@ void channel_prepare_select(fd_set *readset, fd_set *writeset)
 void channel_after_select(fd_set *readset, fd_set *writeset)
 {
   struct sockaddr addr;
-  int addrlen, newsock, i, newch, len, port;
+  int addrlen, newsock, i, newch, len, port, temp;
   Channel *ch;
   char buf[16384], *remote_hostname;
   
@@ -521,39 +754,22 @@ void channel_after_select(fd_set *readset, fd_set *writeset)
 	      len = read(ch->sock, buf, len);
 	      if (len <= 0)
 		{
-		  buffer_consume(&ch->output, buffer_len(&ch->output));
-		  ch->type = SSH_CHANNEL_INPUT_DRAINING;
-		  debug("Channel %d status set to input draining.", i);
+		  channel_close_input(ch);
 		  break;
 		}
 	      buffer_append(&ch->input, buf, len);
 	    }
 	  /* Send buffered output data to the socket. */
-	  if (FD_ISSET(ch->sock, writeset) && buffer_len(&ch->output) > 0)
+	  if (FD_ISSET(ch->sock, writeset) &&
+	      (temp = buffer_len(&ch->output)) > 0)
 	    {
-	      len = write(ch->sock, buffer_ptr(&ch->output),
-			  buffer_len(&ch->output));
+	      len = write(ch->sock, buffer_ptr(&ch->output), temp);
 	      if (len <= 0)
 		{
-		  buffer_consume(&ch->output, buffer_len(&ch->output));
-		  debug("Channel %d status set to input draining.", i);
-		  ch->type = SSH_CHANNEL_INPUT_DRAINING;
+		  channel_close_output(ch);
 		  break;
 		}
 	      buffer_consume(&ch->output, len);
-	    }
-	  break;
-
-	case SSH_CHANNEL_OUTPUT_DRAINING:
-	  /* Send buffered output data to the socket. */
-	  if (FD_ISSET(ch->sock, writeset) && buffer_len(&ch->output) > 0)
-	    {
-	      len = write(ch->sock, buffer_ptr(&ch->output),
-			  buffer_len(&ch->output));
-	      if (len <= 0)
-		buffer_consume(&ch->output, buffer_len(&ch->output));
-	      else
-		buffer_consume(&ch->output, len);
 	    }
 	  break;
 
@@ -582,8 +798,7 @@ void channel_output_poll()
       ch = &channels[i];
       /* We are only interested in channels that can have buffered incoming
 	 data. */
-      if (ch->type != SSH_CHANNEL_OPEN && 
-	  ch->type != SSH_CHANNEL_INPUT_DRAINING)
+      if (ch->type != SSH_CHANNEL_OPEN)
 	continue;
 
       /* Get the amount of buffered data for this channel. */
@@ -609,6 +824,16 @@ void channel_output_poll()
 	  packet_send();
 	  buffer_consume(&ch->input, len);
 	}
+      /* check if we should send epsilon out */
+      else
+	{
+	  /* input buffer is empty, input socket closed,
+	     input eof not sent, send it now */
+	  if ((ch->status_flags & (PHII_IN | EPSILON_S)) == PHII_IN)
+	    {
+	      channel_send_ieof(ch);
+	    }
+	}
     }
 }
 
@@ -627,16 +852,23 @@ void channel_input_data()
   if (channel < 0 || channel >= channels_alloc ||
       channels[channel].type == SSH_CHANNEL_FREE)
     packet_disconnect("Received data for nonexistent channel %d.", channel);
-
+  
   /* Ignore any data for non-open channels (might happen on close) */
   if (channels[channel].type != SSH_CHANNEL_OPEN &&
       channels[channel].type != SSH_CHANNEL_X11_OPEN)
     return; 
-
+  
   /* Get the data. */
-  data = packet_get_string(&data_len);
-  buffer_append(&channels[channel].output, data, data_len);
-  xfree(data);
+  
+  if (channels[channel].status_flags & EPSILON_R)
+    packet_disconnect("Other party sent data after eof for channel %d.",
+		      channel);
+  
+  if (!(channels[channel].status_flags & PHII_OUT)) {
+    data = packet_get_string(&data_len);
+    buffer_append(&channels[channel].output, data, data_len);
+    xfree(data);
+  }
 }
 
 /* Returns true if no channel has too much buffered data, and false if
@@ -664,8 +896,6 @@ int channel_not_very_much_buffered_data()
 	  if (buffer_len(&ch->output) > 32000)
 	    return 0;
 	  continue;
-	case SSH_CHANNEL_INPUT_DRAINING:
-	case SSH_CHANNEL_OUTPUT_DRAINING:
 	case SSH_CHANNEL_X11_OPEN:
 	case SSH_CHANNEL_FREE:
 	default:
@@ -675,59 +905,23 @@ int channel_not_very_much_buffered_data()
   return 1;
 }
 
-/* This is called after receiving CHANNEL_CLOSE. */
+#ifdef SUPPORT_OLD_CHANNELS
+void channel_input_close_confirmation()
+{
+  if (emulation_information & EMULATE_OLD_CHANNEL_CODE)
+    channel_emulated_close(1);
+  else
+    channel_oclosed();
+}
 
 void channel_input_close()
 {
-  int channel;
-
-  /* Get the channel number and verify it. */
-  channel = packet_get_int();
-  if (channel < 0 || channel >= channels_alloc ||
-      channels[channel].type == SSH_CHANNEL_FREE)
-    packet_disconnect("Received data for nonexistent channel %d.", channel);
-
-  /* Send a confirmation that we have closed the channel and no more data is
-     coming for it. */
-  packet_start(SSH_MSG_CHANNEL_CLOSE_CONFIRMATION);
-  packet_put_int(channels[channel].remote_id);
-  packet_send();
-
-  /* If the channel is in closed state, we have sent a close request, and
-     the other side will eventually respond with a confirmation.  Thus,
-     we cannot free the channel here, because then there would be no-one to
-     receive the confirmation.  The channel gets freed when the confirmation
-     arrives. */
-  if (channels[channel].type != SSH_CHANNEL_CLOSED)
-    {
-      /* Not a closed channel - mark it as draining, which will cause it to
-	 be freed later. */
-      buffer_consume(&channels[channel].input, 
-		     buffer_len(&channels[channel].input));
-      channels[channel].type = SSH_CHANNEL_OUTPUT_DRAINING;
-      /* debug("Setting status to output draining; output len = %d",
-	 buffer_len(&channels[channel].output)); */
-    }
+  if (emulation_information & EMULATE_OLD_CHANNEL_CODE)
+    channel_emulated_close(0);
+  else
+    channel_ieof();
 }
-
-/* This is called after receiving CHANNEL_CLOSE_CONFIRMATION. */
-
-void channel_input_close_confirmation()
-{
-  int channel;
-
-  /* Get the channel number and verify it. */
-  channel = packet_get_int();
-  if (channel < 0 || channel >= channels_alloc)
-    packet_disconnect("Received close confirmation for out-of-range channel %d.",
-		      channel);
-  if (channels[channel].type != SSH_CHANNEL_CLOSED)
-    packet_disconnect("Received close confirmation for non-closed channel %d (type %d).",
-		      channel, channels[channel].type);
-
-  /* Free the channel. */
-  channel_free(channel);
-}
+#endif
 
 /* This is called after receiving CHANNEL_OPEN_CONFIRMATION. */
 
@@ -746,6 +940,7 @@ void channel_input_open_confirmation()
   remote_channel = packet_get_int();
 
   /* Record the remote channel number and mark that the channel is now open. */
+  debug("Channel now open, status bits %x\n", channels[channel].status_flags);
   channels[channel].remote_id = remote_channel;
   channels[channel].type = SSH_CHANNEL_OPEN;
 }
@@ -824,7 +1019,6 @@ int channel_still_open()
       case SSH_CHANNEL_FREE:
       case SSH_CHANNEL_X11_LISTENER:
       case SSH_CHANNEL_PORT_LISTENER:
-      case SSH_CHANNEL_CLOSED:
       case SSH_CHANNEL_AUTH_FD:
       case SSH_CHANNEL_AUTH_SOCKET:
       case SSH_CHANNEL_AUTH_SOCKET_FD:
@@ -832,8 +1026,6 @@ int channel_still_open()
       case SSH_CHANNEL_OPENING:
       case SSH_CHANNEL_OPEN:
       case SSH_CHANNEL_X11_OPEN:
-      case SSH_CHANNEL_INPUT_DRAINING:
-      case SSH_CHANNEL_OUTPUT_DRAINING:
 	return 1;
       default:
 	fatal("channel_still_open: bad channel type %d", channels[i].type);
@@ -861,7 +1053,6 @@ char *channel_open_message()
       case SSH_CHANNEL_FREE:
       case SSH_CHANNEL_X11_LISTENER:
       case SSH_CHANNEL_PORT_LISTENER:
-      case SSH_CHANNEL_CLOSED:
       case SSH_CHANNEL_AUTH_FD:
       case SSH_CHANNEL_AUTH_SOCKET:
       case SSH_CHANNEL_AUTH_SOCKET_FD:
@@ -869,8 +1060,6 @@ char *channel_open_message()
       case SSH_CHANNEL_OPENING:
       case SSH_CHANNEL_OPEN:
       case SSH_CHANNEL_X11_OPEN:
-      case SSH_CHANNEL_INPUT_DRAINING:
-      case SSH_CHANNEL_OUTPUT_DRAINING:
 	sprintf(buf, "  %.300s\r\n", channels[i].remote_name);
 	buffer_append(&buffer, buf, strlen(buf));
 	continue;
@@ -1357,6 +1546,8 @@ void x11_input_open()
     newch = channel_allocate(SSH_CHANNEL_X11_OPEN, sock, remote_host);
   channels[newch].remote_id = remote_channel;
   
+  debug("Sending open confirmation to the remote host.");
+
   /* Send a confirmation to the remote host. */
   packet_start(SSH_MSG_CHANNEL_OPEN_CONFIRMATION);
   packet_put_int(remote_channel);
@@ -1366,6 +1557,7 @@ void x11_input_open()
   return;
 
  fail:
+  debug ("Failed...");
   /* Send refusal to the remote host. */
   packet_start(SSH_MSG_CHANNEL_OPEN_FAILURE);
   packet_put_int(remote_channel);
