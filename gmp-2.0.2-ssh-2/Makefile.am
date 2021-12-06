@@ -39,7 +39,7 @@ EXTRA_DIST = PROJECTS SPEED cre-mparam.c make.bat config.h.in acconfig.h
 
 INCLUDES = -I. -I$(srcdir) -Impn -I$(srcdir)/mpn
 
-libgmp.a: $(libgmp_a_OBJECTS) $(libgmp_a_LIBADD) all-recursive
+libgmp.a: $(libgmp_a_OBJECTS) $(libgmp_a_LIBADD)
 	-rm -rf tmpdirgmp
 	-mkdir tmpdirgmp
 	for i in mpn mpz mpf mpq; \
@@ -57,7 +57,7 @@ libgmp.a: $(libgmp_a_OBJECTS) $(libgmp_a_LIBADD) all-recursive
 
 # There appear to be strange problems with ar and parallel makes; I've added
 # dummy depend on libgmp.a here to serialize these.
-libmp.a: $(libmp_a_OBJECTS) $(libmp_a_LIBADD) all-recursive libgmp.a
+libmp.a: $(libmp_a_OBJECTS) $(libmp_a_LIBADD) libgmp.a
 	-rm -rf tmpdirmp
 	-mkdir tmpdirmp
 	for i in mpn mpbsd; \
