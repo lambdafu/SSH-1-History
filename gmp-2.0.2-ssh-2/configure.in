@@ -80,7 +80,7 @@ case "$host" in
     AC_MSG_CHECKING(whether assembler understands +DA1.1 option)
     OLD_CFLAGS=$CFLAGS
     CFLAGS="$CFLAGS -Wa,+DA1.1"
-    AC_TRY_COMPILE(,, [AC_MSG_RESULT(yes)
+    AC_TRY_LINK(,, [AC_MSG_RESULT(yes)
 	SFLAGS="-Wa,+DA1.1"], AC_MSG_RESULT(no))
     CFLAGS=$OLD_CFLAGS
     changequote
@@ -96,7 +96,7 @@ case "$host" in
     AC_MSG_CHECKING(whether assembler understands +DA1.1 option)
     OLD_CFLAGS=$CFLAGS
     CFLAGS="$CFLAGS -Wa,+DA1.1"
-    AC_TRY_COMPILE(,, [AC_MSG_RESULT(yes)
+    AC_TRY_LINK(,, [AC_MSG_RESULT(yes)
 	SFLAGS="-Wa,+DA1.1"], AC_MSG_RESULT(no))
     CFLAGS=$OLD_CFLAGS
     changequote
