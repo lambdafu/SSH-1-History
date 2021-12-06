@@ -76,6 +76,14 @@ case "$host" in
   hppa7000*-*-*)
     path="hppa/hppa1_1 hppa"
     extra_functions="udiv_qrnnd"
+    changequote([, ])dnl
+    AC_MSG_CHECKING(whether assembler understands +DA1.1 option)
+    OLD_CFLAGS=$CFLAGS
+    CFLAGS="$CFLAGS -Wa,+DA1.1"
+    AC_TRY_COMPILE(,, [AC_MSG_RESULT(yes)
+	SFLAGS="-Wa,+DA1.1"], AC_MSG_RESULT(no))
+    CFLAGS=$OLD_CFLAGS
+    changequote
     ;;
   hppa1.0*-*-*)
     path="hppa"
@@ -84,6 +92,14 @@ case "$host" in
   hppa*-*-*)                                    # assume pa7100
     path="hppa/hppa1_1/pa7100 hppa/hppa1_1 hppa"
     extra_functions="udiv_qrnnd"
+    changequote([, ])dnl
+    AC_MSG_CHECKING(whether assembler understands +DA1.1 option)
+    OLD_CFLAGS=$CFLAGS
+    CFLAGS="$CFLAGS -Wa,+DA1.1"
+    AC_TRY_COMPILE(,, [AC_MSG_RESULT(yes)
+	SFLAGS="-Wa,+DA1.1"], AC_MSG_RESULT(no))
+    CFLAGS=$OLD_CFLAGS
+    changequote
     ;;
   cray2-cray-unicos* | [xy]mp-cray-unicos* | [ctj]90-cray-unicos*)
     path="cray" 
@@ -385,10 +401,10 @@ AC_CACHE_VAL(ac_cv_gmp_asm_status, [
 	fi
 	if test "$s" = "$file"; then
           echo "${CC-cc} -c -I$mpnincl -I. -I.. $CFLAGS $SFLAGS $file" >&5
-          (cd mpn; ${CC-cc} -c -I$mpnincl -I. -I.. $CFLAGS $SFLAGS $file) >conftemp.$$ 2>&1
+          (cd mpn; ${CC-cc} -c -I$mpnincl -I. -I.. $CFLAGS $SFLAGS $file >../conftemp.$$ 2>&1 )
 	else
 	  echo "$CPP $SFLAGS -I$mpnincl -I. -I.. $CFLAGS $file | grep -v '^#' >tmp-$s; ${CC-cc} -c $CFLAGS $SFLAGS tmp-$s; rm -f tmp-$s; mv tmp-$o $o" >&5
-	  (cd mpn; $CPP $SFLAGS -I$mpnincl -I. -I.. $CFLAGS $file | grep -v '^#' >tmp-$s; ${CC-cc} -c $CFLAGS $SFLAGS tmp-$s; rm -f tmp-$s; mv tmp-$o $o) >conftemp.$$ 2>&1
+	  (cd mpn; $CPP $SFLAGS -I$mpnincl -I. -I.. $CFLAGS $file | grep -v '^#' >tmp-$s; ${CC-cc} -c $CFLAGS $SFLAGS tmp-$s; rm -f tmp-$s; mv tmp-$o $o >../conftemp.$$ 2>&1)
 	fi
         if test "$?" != 0 || test -n "`cat conftemp.$$`"; then
 	  asm_ok=no
