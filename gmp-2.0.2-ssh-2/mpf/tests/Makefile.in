@@ -1,4 +1,4 @@
-# Makefile.in generated automatically by automake 1.0 from Makefile.am
+# Makefile.in generated automatically by automake 1.1m from Makefile.am
 
 # Copyright (C) 1994, 1995, 1996 Free Software Foundation, Inc.
 # This Makefile.in is free software; the Free Software Foundation
@@ -51,11 +51,26 @@ pkgincludedir = $(includedir)/@PACKAGE@
 
 top_builddir = ../..
 
+ACLOCAL = @ACLOCAL@
+AUTOCONF = @AUTOCONF@
+AUTOMAKE = @AUTOMAKE@
+AUTOHEADER = @AUTOHEADER@
+
 INSTALL = @INSTALL@
 INSTALL_PROGRAM = @INSTALL_PROGRAM@
 INSTALL_DATA = @INSTALL_DATA@
 INSTALL_SCRIPT = @INSTALL_SCRIPT@
 transform = @program_transform_name@
+host_alias = @host_alias@
+host_triplet = @host@
+CC = @CC@
+INSTALL_SCRIPT = @INSTALL_SCRIPT@
+MPN_DISTCLEANFILES = @MPN_DISTCLEANFILES@
+MPN_OBJS = @MPN_OBJS@
+PACKAGE = @PACKAGE@
+RANLIB = @RANLIB@
+SFLAGS = @SFLAGS@
+VERSION = @VERSION@
 
 AUTOMAKE_OPTIONS = 1.0 foreign no-dependencies
 
@@ -75,71 +90,68 @@ t_sqrt_SOURCES = t-sqrt.c
 t_sub_SOURCES = t-sub.c ref.c
 
 CLEANFILES = $(EXTRA_PROGRAMS)
-mkinstalldirs = $(top_srcdir)/mkinstalldirs
-
-CC = @CC@
-LEX = @LEX@
-YACC = @YACC@
+mkinstalldirs = $(SHELL) $(top_srcdir)/mkinstalldirs
+CONFIG_CLEAN_FILES = 
 
 DEFS = @DEFS@ -I. -I$(srcdir) 
 CPPFLAGS = @CPPFLAGS@
-CFLAGS = @CFLAGS@
 LDFLAGS = @LDFLAGS@
 LIBS = @LIBS@
-
-COMPILE = $(CC) -c $(DEFS) $(INCLUDES) $(CPPFLAGS) $(CFLAGS)
-LINK = $(CC) $(LDFLAGS) -o $@
-reuse_OBJECTS = reuse.o
-EXTRA_reuse_SOURCES =
+reuse_OBJECTS =  reuse.o
 reuse_LDADD = $(LDADD)
-t_add_OBJECTS = t-add.o ref.o
-EXTRA_t_add_SOURCES =
+reuse_DEPENDENCIES =  ../../libgmp.a
+reuse_LDFLAGS = 
+t_add_OBJECTS =  t-add.o ref.o
 t_add_LDADD = $(LDADD)
-t_conv_OBJECTS = t-conv.o
-EXTRA_t_conv_SOURCES =
+t_add_DEPENDENCIES =  ../../libgmp.a
+t_add_LDFLAGS = 
+t_conv_OBJECTS =  t-conv.o
 t_conv_LDADD = $(LDADD)
-t_dm2exp_OBJECTS = t-dm2exp.o
-EXTRA_t_dm2exp_SOURCES =
+t_conv_DEPENDENCIES =  ../../libgmp.a
+t_conv_LDFLAGS = 
+t_dm2exp_OBJECTS =  t-dm2exp.o
 t_dm2exp_LDADD = $(LDADD)
-t_muldiv_OBJECTS = t-muldiv.o
-EXTRA_t_muldiv_SOURCES =
+t_dm2exp_DEPENDENCIES =  ../../libgmp.a
+t_dm2exp_LDFLAGS = 
+t_muldiv_OBJECTS =  t-muldiv.o
 t_muldiv_LDADD = $(LDADD)
-t_sqrt_OBJECTS = t-sqrt.o
-EXTRA_t_sqrt_SOURCES =
+t_muldiv_DEPENDENCIES =  ../../libgmp.a
+t_muldiv_LDFLAGS = 
+t_sqrt_OBJECTS =  t-sqrt.o
 t_sqrt_LDADD = $(LDADD)
-t_sub_OBJECTS = t-sub.o ref.o
-EXTRA_t_sub_SOURCES =
+t_sqrt_DEPENDENCIES =  ../../libgmp.a
+t_sqrt_LDFLAGS = 
+t_sub_OBJECTS =  t-sub.o ref.o
 t_sub_LDADD = $(LDADD)
-DIST_COMMON = Makefile.am Makefile.in
+t_sub_DEPENDENCIES =  ../../libgmp.a
+t_sub_LDFLAGS = 
+CFLAGS = @CFLAGS@
+COMPILE = $(CC) $(DEFS) $(INCLUDES) $(CPPFLAGS) $(CFLAGS)
+LINK = $(CC) $(LDFLAGS) -o $@
+DIST_COMMON =  Makefile.am Makefile.in
 
 
-PACKAGE = @PACKAGE@
-VERSION = @VERSION@
-
-DISTFILES = $(DIST_COMMON) $(SOURCES) $(BUILT_SOURCES) $(HEADERS) \
-	$(TEXINFOS) $(INFOS) $(MANS) $(EXTRA_DIST) $(DATA)
-DEP_DISTFILES = $(DIST_COMMON) $(SOURCES) $(BUILT_SOURCES) $(HEADERS) \
-	$(TEXINFOS) $(INFO_DEPS) $(MANS) $(EXTRA_DIST) $(DATA)
+DISTFILES = $(DIST_COMMON) $(SOURCES) $(HEADERS) $(TEXINFOS) $(EXTRA_DIST)
 
 TAR = tar
-SOURCES = $(reuse_SOURCES) $(t_add_SOURCES) $(t_conv_SOURCES) \
-$(t_dm2exp_SOURCES) $(t_muldiv_SOURCES) $(t_sqrt_SOURCES) \
-$(t_sub_SOURCES)
-OBJECTS = $(reuse_OBJECTS) $(t_add_OBJECTS) $(t_conv_OBJECTS) \
-$(t_dm2exp_OBJECTS) $(t_muldiv_OBJECTS) $(t_sqrt_OBJECTS) \
-$(t_sub_OBJECTS)
+GZIP = --best
+SOURCES = $(reuse_SOURCES) $(t_add_SOURCES) $(t_conv_SOURCES) $(t_dm2exp_SOURCES) $(t_muldiv_SOURCES) $(t_sqrt_SOURCES) $(t_sub_SOURCES)
+OBJECTS = $(reuse_OBJECTS) $(t_add_OBJECTS) $(t_conv_OBJECTS) $(t_dm2exp_OBJECTS) $(t_muldiv_OBJECTS) $(t_sqrt_OBJECTS) $(t_sub_OBJECTS)
 
 default: all
 
+.SUFFIXES:
+.SUFFIXES: .c .o
+$(srcdir)/Makefile.in: Makefile.am $(top_srcdir)/configure.in $(ACLOCAL_M4) 
+	cd $(top_srcdir) && $(AUTOMAKE) --foreign mpf/tests/Makefile
 
-$(srcdir)/Makefile.in: Makefile.am $(top_srcdir)/configure.in
-	cd $(top_srcdir) && automake $(subdir)/Makefile
+Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status $(BUILT_SOURCES)
+	cd $(top_builddir) \
+	  && CONFIG_FILES=$(subdir)/$@ CONFIG_HEADERS= $(SHELL) ./config.status
 
-Makefile: $(top_builddir)/config.status Makefile.in
-	cd $(top_builddir) && CONFIG_FILES=$(subdir)/$@ CONFIG_HEADERS= ./config.status
 
 .c.o:
-	$(COMPILE) $<
+	$(COMPILE) -c $<
 
 mostlyclean-compile:
 	rm -f *.o core
@@ -152,33 +164,39 @@ distclean-compile:
 maintainer-clean-compile:
 
 reuse: $(reuse_OBJECTS) $(reuse_DEPENDENCIES)
-	$(LINK) $(reuse_OBJECTS) $(reuse_LDADD) $(LIBS)
+	$(LINK) $(reuse_LDFLAGS) $(reuse_OBJECTS) $(reuse_LDADD) $(LIBS)
 
 t-add: $(t_add_OBJECTS) $(t_add_DEPENDENCIES)
-	$(LINK) $(t_add_OBJECTS) $(t_add_LDADD) $(LIBS)
+	$(LINK) $(t_add_LDFLAGS) $(t_add_OBJECTS) $(t_add_LDADD) $(LIBS)
 
 t-conv: $(t_conv_OBJECTS) $(t_conv_DEPENDENCIES)
-	$(LINK) $(t_conv_OBJECTS) $(t_conv_LDADD) $(LIBS)
+	$(LINK) $(t_conv_LDFLAGS) $(t_conv_OBJECTS) $(t_conv_LDADD) $(LIBS)
 
 t-dm2exp: $(t_dm2exp_OBJECTS) $(t_dm2exp_DEPENDENCIES)
-	$(LINK) $(t_dm2exp_OBJECTS) $(t_dm2exp_LDADD) $(LIBS)
+	$(LINK) $(t_dm2exp_LDFLAGS) $(t_dm2exp_OBJECTS) $(t_dm2exp_LDADD) $(LIBS)
 
 t-muldiv: $(t_muldiv_OBJECTS) $(t_muldiv_DEPENDENCIES)
-	$(LINK) $(t_muldiv_OBJECTS) $(t_muldiv_LDADD) $(LIBS)
+	$(LINK) $(t_muldiv_LDFLAGS) $(t_muldiv_OBJECTS) $(t_muldiv_LDADD) $(LIBS)
 
 t-sqrt: $(t_sqrt_OBJECTS) $(t_sqrt_DEPENDENCIES)
-	$(LINK) $(t_sqrt_OBJECTS) $(t_sqrt_LDADD) $(LIBS)
+	$(LINK) $(t_sqrt_LDFLAGS) $(t_sqrt_OBJECTS) $(t_sqrt_LDADD) $(LIBS)
 
 t-sub: $(t_sub_OBJECTS) $(t_sub_DEPENDENCIES)
-	$(LINK) $(t_sub_OBJECTS) $(t_sub_LDADD) $(LIBS)
+	$(LINK) $(t_sub_LDFLAGS) $(t_sub_OBJECTS) $(t_sub_LDADD) $(LIBS)
+
+tags: TAGS
 
 ID: $(HEADERS) $(SOURCES)
 	here=`pwd` && cd $(srcdir) && mkid -f$$here/ID $(SOURCES) $(HEADERS)
 
-tags: TAGS
-
-TAGS: $(HEADERS) $(SOURCES) $(TAGS_DEPENDENCIES)
-	here=`pwd` && cd $(srcdir) && etags $(ETAGS_ARGS) $(SOURCES) $(HEADERS) -o $$here/TAGS
+TAGS:  $(HEADERS) $(SOURCES)  $(TAGS_DEPENDENCIES)
+	tags=; \
+	here=`pwd`; \
+	list="$(SUBDIRS)"; for subdir in $$list; do \
+	  test -f $$subdir/TAGS && tags="$$tags -i $$here/$$subdir/TAGS"; \
+	done; \
+	test -z "$(ETAGS_ARGS)$(SOURCES)$(HEADERS)$$tags" \
+	  || cd $(srcdir) && etags $(ETAGS_ARGS) $$tags  $(SOURCES) $(HEADERS) -o $$here/TAGS
 
 mostlyclean-tags:
 
@@ -189,13 +207,15 @@ distclean-tags:
 
 maintainer-clean-tags:
 
-subdir = mpf/tests
 distdir = $(top_builddir)/$(PACKAGE)-$(VERSION)/$(subdir)
-distdir: $(DEP_DISTFILES)
-	@for file in `cd $(srcdir) && echo $(DISTFILES)`; do \
+
+subdir = mpf/tests
+distdir: $(DISTFILES)
+	@for file in $(DISTFILES); do \
+	  d=$(srcdir); \
 	  test -f $(distdir)/$$file \
-	  || ln $(srcdir)/$$file $(distdir)/$$file 2> /dev/null \
-	  || cp -p $(srcdir)/$$file $(distdir)/$$file; \
+	  || ln $$d/$$file $(distdir)/$$file 2> /dev/null \
+	  || cp -p $$d/$$file $(distdir)/$$file; \
 	done
 check-TESTS: $(TESTS)
 	@failed=0; all=0; \
@@ -204,7 +224,7 @@ check-TESTS: $(TESTS)
 	  all=`expr $$all + 1`; \
 	  if test -f $$tst; then dir=.; \
 	  else dir="$(srcdir)"; fi; \
-	  if $$dir/$$tst; then \
+	  if $(TESTS_ENVIRONMENT) $$dir/$$tst; then \
 	    echo "PASS: $$tst"; \
 	  else \
 	    failed=`expr $$failed + 1`; \
@@ -217,18 +237,18 @@ check-TESTS: $(TESTS)
 	  echo "========================"; \
 	else \
 	  echo "$$failed of $$all tests failed"; \
+	  exit 1; \
 	fi
 info:
-
 dvi:
-
-check: all check-TESTS
-
+check: all
+	$(MAKE) check-TESTS
 installcheck:
-
 install-exec: 
+	$(NORMAL_INSTALL)
 
 install-data: 
+	$(NORMAL_INSTALL)
 
 install: install-exec install-data all
 	@:
@@ -250,32 +270,31 @@ clean-generic:
 
 distclean-generic:
 	rm -f Makefile $(DISTCLEANFILES)
-	rm -f config.cache config.log $(CONFIG_HEADER) stamp-h
+	rm -f config.cache config.log stamp-h
+	test -z "$(CONFIG_CLEAN_FILES)" || rm -f $(CONFIG_CLEAN_FILES)
 
 maintainer-clean-generic:
 	test -z "$(MAINTAINERCLEANFILES)" || rm -f $(MAINTAINERCLEANFILES)
 	test -z "$(BUILT_SOURCES)" || rm -f $(BUILT_SOURCES)
 mostlyclean:  mostlyclean-compile mostlyclean-tags mostlyclean-generic
 
-clean:  clean-compile clean-tags clean-generic mostlyclean 
+clean:  clean-compile clean-tags clean-generic mostlyclean
 
-distclean:  distclean-compile distclean-tags distclean-generic clean 
+distclean:  distclean-compile distclean-tags distclean-generic clean
 	rm -f config.status
 
 maintainer-clean:  maintainer-clean-compile maintainer-clean-tags \
-		maintainer-clean-generic distclean 
+		maintainer-clean-generic distclean
 	@echo "This command is intended for maintainers to use;"
 	@echo "it deletes files that may require special tools to rebuild."
 
 .PHONY: default mostlyclean-compile distclean-compile clean-compile \
 maintainer-clean-compile tags mostlyclean-tags distclean-tags \
-clean-tags maintainer-clean-tags distdir check-TESTS info dvi check \
+clean-tags maintainer-clean-tags distdir check-TESTS info dvi \
 installcheck install-exec install-data install uninstall all \
 installdirs mostlyclean-generic distclean-generic clean-generic \
 maintainer-clean-generic clean mostlyclean distclean maintainer-clean
 
-.SUFFIXES:
-.SUFFIXES: .c .o
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.

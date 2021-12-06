@@ -1,4 +1,4 @@
-# Makefile.in generated automatically by automake 1.0 from Makefile.am
+# Makefile.in generated automatically by automake 1.1m from Makefile.am
 
 # Copyright (C) 1994, 1995, 1996 Free Software Foundation, Inc.
 # This Makefile.in is free software; the Free Software Foundation
@@ -51,83 +51,88 @@ pkgincludedir = $(includedir)/@PACKAGE@
 
 top_builddir = ..
 
+ACLOCAL = @ACLOCAL@
+AUTOCONF = @AUTOCONF@
+AUTOMAKE = @AUTOMAKE@
+AUTOHEADER = @AUTOHEADER@
+
 INSTALL = @INSTALL@
 INSTALL_PROGRAM = @INSTALL_PROGRAM@
 INSTALL_DATA = @INSTALL_DATA@
 INSTALL_SCRIPT = @INSTALL_SCRIPT@
 transform = @program_transform_name@
+host_alias = @host_alias@
+host_triplet = @host@
+CC = @CC@
+INSTALL_SCRIPT = @INSTALL_SCRIPT@
+MPN_DISTCLEANFILES = @MPN_DISTCLEANFILES@
+MPN_OBJS = @MPN_OBJS@
+PACKAGE = @PACKAGE@
+RANLIB = @RANLIB@
+SFLAGS = @SFLAGS@
+VERSION = @VERSION@
 
 AUTOMAKE_OPTIONS = 1.0 foreign no-dependencies
 
 SUBDIRS = tests
 
-noinst_LIBRARIES = mpq
+noinst_LIBRARIES = libmpq.a
 
-mpq_SOURCES = add.c canonicalize.c clear.c cmp.c cmp_ui.c div.c get_d.c \
+libmpq_a_SOURCES = add.c canonicalize.c clear.c cmp.c cmp_ui.c div.c get_d.c \
  get_den.c get_num.c init.c inv.c mul.c neg.c set.c set_den.c set_num.c \
  set_si.c set_ui.c sub.c equal.c set_z.c
 
 INCLUDES = -I.. -I../mpn -I$(srcdir)/..
-mkinstalldirs = $(top_srcdir)/mkinstalldirs
-LIBRARIES = $(noinst_LIBRARIES)
+mkinstalldirs = $(SHELL) $(top_srcdir)/mkinstalldirs
+CONFIG_CLEAN_FILES = 
+LIBRARIES =  $(noinst_LIBRARIES)
 
-noinst_LIBFILES = libmpq.a
-
-CC = @CC@
-LEX = @LEX@
-YACC = @YACC@
 
 DEFS = @DEFS@ -I. -I$(srcdir) 
 CPPFLAGS = @CPPFLAGS@
-CFLAGS = @CFLAGS@
 LDFLAGS = @LDFLAGS@
 LIBS = @LIBS@
-
-COMPILE = $(CC) -c $(DEFS) $(INCLUDES) $(CPPFLAGS) $(CFLAGS)
-LINK = $(CC) $(LDFLAGS) -o $@
-mpq_LIBADD =
-mpq_OBJECTS = add.o canonicalize.o clear.o cmp.o cmp_ui.o div.o get_d.o \
-get_den.o get_num.o init.o inv.o mul.o neg.o set.o set_den.o set_num.o \
-set_si.o set_ui.o sub.o equal.o set_z.o
-EXTRA_mpq_SOURCES =
-LIBFILES =  libmpq.a
+libmpq_a_LIBADD = 
+libmpq_a_OBJECTS =  add.o canonicalize.o clear.o cmp.o cmp_ui.o div.o \
+get_d.o get_den.o get_num.o init.o inv.o mul.o neg.o set.o set_den.o \
+set_num.o set_si.o set_ui.o sub.o equal.o set_z.o
 AR = ar
-RANLIB = @RANLIB@
-DIST_COMMON = Makefile.am Makefile.in
+CFLAGS = @CFLAGS@
+COMPILE = $(CC) $(DEFS) $(INCLUDES) $(CPPFLAGS) $(CFLAGS)
+LINK = $(CC) $(LDFLAGS) -o $@
+DIST_COMMON =  Makefile.am Makefile.in
 
 
-PACKAGE = @PACKAGE@
-VERSION = @VERSION@
-
-DISTFILES = $(DIST_COMMON) $(SOURCES) $(BUILT_SOURCES) $(HEADERS) \
-	$(TEXINFOS) $(INFOS) $(MANS) $(EXTRA_DIST) $(DATA)
-DEP_DISTFILES = $(DIST_COMMON) $(SOURCES) $(BUILT_SOURCES) $(HEADERS) \
-	$(TEXINFOS) $(INFO_DEPS) $(MANS) $(EXTRA_DIST) $(DATA)
+DISTFILES = $(DIST_COMMON) $(SOURCES) $(HEADERS) $(TEXINFOS) $(EXTRA_DIST)
 
 TAR = tar
-SOURCES = $(mpq_SOURCES)
-OBJECTS = $(mpq_OBJECTS)
+GZIP = --best
+SOURCES = $(libmpq_a_SOURCES)
+OBJECTS = $(libmpq_a_OBJECTS)
 
 default: all
 
+.SUFFIXES:
+.SUFFIXES: .c .o
+$(srcdir)/Makefile.in: Makefile.am $(top_srcdir)/configure.in $(ACLOCAL_M4) 
+	cd $(top_srcdir) && $(AUTOMAKE) --foreign mpq/Makefile
 
-$(srcdir)/Makefile.in: Makefile.am $(top_srcdir)/configure.in
-	cd $(top_srcdir) && automake $(subdir)/Makefile
+Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status $(BUILT_SOURCES)
+	cd $(top_builddir) \
+	  && CONFIG_FILES=$(subdir)/$@ CONFIG_HEADERS= $(SHELL) ./config.status
 
-Makefile: $(top_builddir)/config.status Makefile.in
-	cd $(top_builddir) && CONFIG_FILES=$(subdir)/$@ CONFIG_HEADERS= ./config.status
 
 mostlyclean-noinstLIBRARIES:
 
 clean-noinstLIBRARIES:
-	rm -f $(noinst_LIBFILES)
+	test -z "$(noinst_LIBRARIES)" || rm -f $(noinst_LIBRARIES)
 
 distclean-noinstLIBRARIES:
 
 maintainer-clean-noinstLIBRARIES:
 
 .c.o:
-	$(COMPILE) $<
+	$(COMPILE) -c $<
 
 mostlyclean-compile:
 	rm -f *.o core
@@ -139,9 +144,9 @@ distclean-compile:
 
 maintainer-clean-compile:
 
-libmpq.a: $(mpq_OBJECTS) $(mpq_LIBADD)
+libmpq.a: $(libmpq_a_OBJECTS) $(libmpq_a_DEPENDENCIES)
 	rm -f libmpq.a
-	$(AR) cru libmpq.a $(mpq_OBJECTS) $(mpq_LIBADD)
+	$(AR) cru libmpq.a $(libmpq_a_OBJECTS) $(libmpq_a_LIBADD)
 	$(RANLIB) libmpq.a
 
 # This directory's subdirectories are mostly independent; you can cd
@@ -154,35 +159,34 @@ libmpq.a: $(mpq_OBJECTS) $(mpq_LIBADD)
 @SET_MAKE@
 
 all-recursive install-data-recursive install-exec-recursive \
-installdirs-recursive install-recursive uninstall-recursive \
+installdirs-recursive install-recursive uninstall-recursive  \
 check-recursive installcheck-recursive info-recursive dvi-recursive \
 mostlyclean-recursive clean-recursive distclean-recursive \
 maintainer-clean-recursive:
-	for subdir in $(SUBDIRS); do		\
+	@for subdir in $(SUBDIRS); do \
 	  target=`echo $@ | sed s/-recursive//`; \
-	  echo making $$target in $$subdir;	\
-	  (cd $$subdir && $(MAKE) $$target)	\
+	  echo "Making $$target in $$subdir"; \
+	  (cd $$subdir && $(MAKE) $$target) \
 	   || case "$(MFLAGS)" in *k*) fail=yes;; *) exit 1;; esac; \
 	done && test -z "$$fail"
-
-tags: TAGS
-
 tags-recursive:
 	list="$(SUBDIRS)"; for subdir in $$list; do \
 	  (cd $$subdir && $(MAKE) tags); \
 	done
 
-TAGS: tags-recursive $(HEADERS) $(SOURCES) $(CONFIG_HEADER) \
-		$(TAGS_DEPENDENCIES)
+tags: TAGS
+
+ID: $(HEADERS) $(SOURCES)
+	here=`pwd` && cd $(srcdir) && mkid -f$$here/ID $(SOURCES) $(HEADERS)
+
+TAGS: tags-recursive $(HEADERS) $(SOURCES)  $(TAGS_DEPENDENCIES)
 	tags=; \
 	here=`pwd`; \
-	for subdir in $(SUBDIRS); do \
-	  test -f $$subdir/TAGS && { \
-	    tags="$$tags -i $$here/$$subdir/TAGS"; \
-	  } \
+	list="$(SUBDIRS)"; for subdir in $$list; do \
+	  test -f $$subdir/TAGS && tags="$$tags -i $$here/$$subdir/TAGS"; \
 	done; \
-	test -z "$(ETAGS_ARGS)$(CONFIG_HEADER)$(SOURCES)$(HEADERS)$$tags" \
-	  || etags $(ETAGS_ARGS) $$tags $(CONFIG_HEADER) $(SOURCES) $(HEADERS)
+	test -z "$(ETAGS_ARGS)$(SOURCES)$(HEADERS)$$tags" \
+	  || cd $(srcdir) && etags $(ETAGS_ARGS) $$tags  $(SOURCES) $(HEADERS) -o $$here/TAGS
 
 mostlyclean-tags:
 
@@ -193,35 +197,36 @@ distclean-tags:
 
 maintainer-clean-tags:
 
-subdir = mpq
 distdir = $(top_builddir)/$(PACKAGE)-$(VERSION)/$(subdir)
-distdir: $(DEP_DISTFILES)
-	@for file in `cd $(srcdir) && echo $(DISTFILES)`; do \
+
+subdir = mpq
+distdir: $(DISTFILES)
+	@for file in $(DISTFILES); do \
+	  d=$(srcdir); \
 	  test -f $(distdir)/$$file \
-	  || ln $(srcdir)/$$file $(distdir)/$$file 2> /dev/null \
-	  || cp -p $(srcdir)/$$file $(distdir)/$$file; \
+	  || ln $$d/$$file $(distdir)/$$file 2> /dev/null \
+	  || cp -p $$d/$$file $(distdir)/$$file; \
 	done
 	for subdir in $(SUBDIRS); do		\
 	  test -d $(distdir)/$$subdir		\
 	  || mkdir $(distdir)/$$subdir		\
 	  || exit 1;				\
-	  chmod 777 $(distdir)/$$subdir;	\
+	  chmod 755 $(distdir)/$$subdir;	\
 	  (cd $$subdir && $(MAKE) distdir=../$(distdir)/$$subdir distdir) \
 	    || exit 1; \
 	done
 info: info-recursive
-
 dvi: dvi-recursive
-
-check: all check-recursive
-
+check: all-am
+	$(MAKE) check-recursive
 installcheck: installcheck-recursive
-
-all-am: $(LIBFILES) Makefile
+all-am: $(LIBRARIES) Makefile
 
 install-exec: install-exec-recursive
+	$(NORMAL_INSTALL)
 
 install-data: install-data-recursive
+	$(NORMAL_INSTALL)
 
 install: install-recursive
 	@:
@@ -243,7 +248,8 @@ clean-generic:
 
 distclean-generic:
 	rm -f Makefile $(DISTCLEANFILES)
-	rm -f config.cache config.log $(CONFIG_HEADER) stamp-h
+	rm -f config.cache config.log stamp-h
+	test -z "$(CONFIG_CLEAN_FILES)" || rm -f $(CONFIG_CLEAN_FILES)
 
 maintainer-clean-generic:
 	test -z "$(MAINTAINERCLEANFILES)" || rm -f $(MAINTAINERCLEANFILES)
@@ -252,23 +258,23 @@ mostlyclean-am:  mostlyclean-noinstLIBRARIES mostlyclean-compile \
 		mostlyclean-tags mostlyclean-generic
 
 clean-am:  clean-noinstLIBRARIES clean-compile clean-tags clean-generic \
-		mostlyclean-am 
+		mostlyclean-am
 
 distclean-am:  distclean-noinstLIBRARIES distclean-compile \
-		distclean-tags distclean-generic clean-am 
+		distclean-tags distclean-generic clean-am
 
 maintainer-clean-am:  maintainer-clean-noinstLIBRARIES \
 		maintainer-clean-compile maintainer-clean-tags \
-		maintainer-clean-generic distclean-am 
+		maintainer-clean-generic distclean-am
 
-mostlyclean:  mostlyclean-am mostlyclean-recursive
+mostlyclean:  mostlyclean-recursive mostlyclean-am
 
-clean:  clean-am clean-recursive
+clean:  clean-recursive clean-am
 
-distclean:  distclean-am distclean-recursive
+distclean:  distclean-recursive distclean-am
 	rm -f config.status
 
-maintainer-clean:  maintainer-clean-am maintainer-clean-recursive
+maintainer-clean:  maintainer-clean-recursive maintainer-clean-am
 	@echo "This command is intended for maintainers to use;"
 	@echo "it deletes files that may require special tools to rebuild."
 
@@ -281,13 +287,11 @@ uninstall-exec-recursive installdirs-recursive uninstalldirs-recursive \
 all-recursive check-recursive installcheck-recursive info-recursive \
 dvi-recursive mostlyclean-recursive distclean-recursive clean-recursive \
 maintainer-clean-recursive tags tags-recursive mostlyclean-tags \
-distclean-tags clean-tags maintainer-clean-tags distdir info dvi check \
+distclean-tags clean-tags maintainer-clean-tags distdir info dvi \
 installcheck all-am install-exec install-data install uninstall all \
 installdirs mostlyclean-generic distclean-generic clean-generic \
 maintainer-clean-generic clean mostlyclean distclean maintainer-clean
 
-.SUFFIXES:
-.SUFFIXES: .c .o
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.

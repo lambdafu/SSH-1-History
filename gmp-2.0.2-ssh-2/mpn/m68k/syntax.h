@@ -57,7 +57,7 @@ MA 02111-1307, USA.  */
 #define MEM_POSTINC(memory_base)(memory_base)+
 #define L(label) label
 #define TEXT .text
-#define ALIGN .even
+#define ALIGN .align 1
 #define GLOBL .globl
 #endif
 
