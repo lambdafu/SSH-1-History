@@ -1743,6 +1743,31 @@ case "$host" in
   hppa7000*-*-*)
     path="hppa/hppa1_1 hppa"
     extra_functions="udiv_qrnnd"
+        echo $ac_n "checking whether assembler understands +DA1.1 option""... $ac_c" 1>&6
+echo "configure:1748: checking whether assembler understands +DA1.1 option" >&5
+    OLD_CFLAGS=$CFLAGS
+    CFLAGS="$CFLAGS -Wa,+DA1.1"
+    cat > conftest.$ac_ext <<EOF
+#line 1752 "configure"
+#include "confdefs.h"
+
+int main() {
+
+; return 0; }
+EOF
+if { (eval echo configure:1759: \"$ac_compile\") 1>&5; (eval $ac_compile) 2>&5; }; then
+  rm -rf conftest*
+  echo "$ac_t""yes" 1>&6
+	SFLAGS="-Wa,+DA1.1"
+else
+  echo "configure: failed program was:" >&5
+  cat conftest.$ac_ext >&5
+  rm -rf conftest*
+  echo "$ac_t""no" 1>&6
+fi
+rm -f conftest*
+    CFLAGS=$OLD_CFLAGS
+    
     ;;
   hppa1.0*-*-*)
     path="hppa"
@@ -1751,6 +1776,31 @@ case "$host" in
   hppa*-*-*)                                    # assume pa7100
     path="hppa/hppa1_1/pa7100 hppa/hppa1_1 hppa"
     extra_functions="udiv_qrnnd"
+        echo $ac_n "checking whether assembler understands +DA1.1 option""... $ac_c" 1>&6
+echo "configure:1781: checking whether assembler understands +DA1.1 option" >&5
+    OLD_CFLAGS=$CFLAGS
+    CFLAGS="$CFLAGS -Wa,+DA1.1"
+    cat > conftest.$ac_ext <<EOF
+#line 1785 "configure"
+#include "confdefs.h"
+
+int main() {
+
+; return 0; }
+EOF
+if { (eval echo configure:1792: \"$ac_compile\") 1>&5; (eval $ac_compile) 2>&5; }; then
+  rm -rf conftest*
+  echo "$ac_t""yes" 1>&6
+	SFLAGS="-Wa,+DA1.1"
+else
+  echo "configure: failed program was:" >&5
+  cat conftest.$ac_ext >&5
+  rm -rf conftest*
+  echo "$ac_t""no" 1>&6
+fi
+rm -f conftest*
+    CFLAGS=$OLD_CFLAGS
+    
     ;;
   cray2-cray-unicos* | [xy]mp-cray-unicos* | [ctj]90-cray-unicos*)
     path="cray" 
@@ -1922,7 +1972,7 @@ fi
 
 # Check whether an underscore gets prepended in names
 echo $ac_n "checking whether underscore gets prepended in C function names""... $ac_c" 1>&6
-echo "configure:1926: checking whether underscore gets prepended in C function names" >&5
+echo "configure:1976: checking whether underscore gets prepended in C function names" >&5
 if eval "test \"`echo '$''{'ac_cv_c_underscore'+set}'`\" = set"; then
   echo $ac_n "(cached) $ac_c" 1>&6
 else
@@ -1962,7 +2012,7 @@ path="$path generic"
 if test '!' -d mpn; then mkdir mpn; fi
 
 echo $ac_n "checking asm code""... $ac_c" 1>&6
-echo "configure:1966: checking asm code" >&5
+echo "configure:2016: checking asm code" >&5
 if eval "test \"`echo '$''{'ac_cv_gmp_asm_status'+set}'`\" = set"; then
   echo $ac_n "(cached) $ac_c" 1>&6
 else
@@ -2072,10 +2122,10 @@ fi
 	fi
 	if test "$s" = "$file"; then
           echo "${CC-cc} -c -I$mpnincl -I. -I.. $CFLAGS $SFLAGS $file" >&5
-          (cd mpn; ${CC-cc} -c -I$mpnincl -I. -I.. $CFLAGS $SFLAGS $file) >conftemp.$$ 2>&1
+          (cd mpn; ${CC-cc} -c -I$mpnincl -I. -I.. $CFLAGS $SFLAGS $file >../conftemp.$$ 2>&1 )
 	else
 	  echo "$CPP $SFLAGS -I$mpnincl -I. -I.. $CFLAGS $file | grep -v '^#' >tmp-$s; ${CC-cc} -c $CFLAGS $SFLAGS tmp-$s; rm -f tmp-$s; mv tmp-$o $o" >&5
-	  (cd mpn; $CPP $SFLAGS -I$mpnincl -I. -I.. $CFLAGS $file | grep -v '^#' >tmp-$s; ${CC-cc} -c $CFLAGS $SFLAGS tmp-$s; rm -f tmp-$s; mv tmp-$o $o) >conftemp.$$ 2>&1
+	  (cd mpn; $CPP $SFLAGS -I$mpnincl -I. -I.. $CFLAGS $file | grep -v '^#' >tmp-$s; ${CC-cc} -c $CFLAGS $SFLAGS tmp-$s; rm -f tmp-$s; mv tmp-$o $o >../conftemp.$$ 2>&1)
 	fi
         if test "$?" != 0 || test -n "`cat conftemp.$$`"; then
 	  asm_ok=no
@@ -2116,7 +2166,7 @@ if test "$ac_cv_gmp_asm_status" = "FAILED"; then
 fi
 
 echo $ac_n "checking asm links""... $ac_c" 1>&6
-echo "configure:2120: checking asm links" >&5
+echo "configure:2170: checking asm links" >&5
 if eval "test \"`echo '$''{'ac_cv_gmp_asm_links'+set}'`\" = set"; then
   echo $ac_n "(cached) $ac_c" 1>&6
 else
@@ -2126,7 +2176,7 @@ fi
 echo "$ac_t""done" 1>&6
 
 echo $ac_n "checking asm sources""... $ac_c" 1>&6
-echo "configure:2130: checking asm sources" >&5
+echo "configure:2180: checking asm sources" >&5
 if eval "test \"`echo '$''{'ac_cv_gmp_asm_files'+set}'`\" = set"; then
   echo $ac_n "(cached) $ac_c" 1>&6
 else
@@ -2136,7 +2186,7 @@ fi
 echo "$ac_t""done" 1>&6
 
 echo $ac_n "checking asm objects""... $ac_c" 1>&6
-echo "configure:2140: checking asm objects" >&5
+echo "configure:2190: checking asm objects" >&5
 if eval "test \"`echo '$''{'ac_cv_gmp_asm_objs'+set}'`\" = set"; then
   echo $ac_n "(cached) $ac_c" 1>&6
 else
@@ -2146,7 +2196,7 @@ fi
 echo "$ac_t""done" 1>&6
 
 echo $ac_n "checking asm syntax""... $ac_c" 1>&6
-echo "configure:2150: checking asm syntax" >&5
+echo "configure:2200: checking asm syntax" >&5
 if eval "test \"`echo '$''{'ac_cv_gmp_asm_syntax'+set}'`\" = set"; then
   echo $ac_n "(cached) $ac_c" 1>&6
 else
@@ -2155,7 +2205,7 @@ fi
 
 echo "$ac_t""$ac_cv_gmp_asm_syntax" 1>&6
 echo $ac_n "checking asm syntax header""... $ac_c" 1>&6
-echo "configure:2159: checking asm syntax header" >&5
+echo "configure:2209: checking asm syntax header" >&5
 if eval "test \"`echo '$''{'ac_cv_gmp_asm_syntax_h'+set}'`\" = set"; then
   echo $ac_n "(cached) $ac_c" 1>&6
 else
@@ -2165,7 +2215,7 @@ fi
 echo "$ac_t""$ac_cv_gmp_asm_syntax_h" 1>&6
 
 echo $ac_n "checking for gmp-mparam.h""... $ac_c" 1>&6
-echo "configure:2169: checking for gmp-mparam.h" >&5
+echo "configure:2219: checking for gmp-mparam.h" >&5
 if eval "test \"`echo '$''{'ac_cv_gmp_mparam'+set}'`\" = set"; then
   echo $ac_n "(cached) $ac_c" 1>&6
 else
@@ -2189,7 +2239,7 @@ fi
 echo "$ac_t""$ac_cv_gmp_mparam" 1>&6
 
 echo $ac_n "checking other objs""... $ac_c" 1>&6
-echo "configure:2193: checking other objs" >&5
+echo "configure:2243: checking other objs" >&5
 if eval "test \"`echo '$''{'ac_cv_gmp_other_objs'+set}'`\" = set"; then
   echo $ac_n "(cached) $ac_c" 1>&6
 else
@@ -2217,7 +2267,7 @@ fi
 echo "$ac_t""done" 1>&6
 
 echo $ac_n "checking other sources""... $ac_c" 1>&6
-echo "configure:2221: checking other sources" >&5
+echo "configure:2271: checking other sources" >&5
 if eval "test \"`echo '$''{'ac_cv_gmp_other_files'+set}'`\" = set"; then
   echo $ac_n "(cached) $ac_c" 1>&6
 else
@@ -2227,7 +2277,7 @@ fi
 echo "$ac_t""done" 1>&6
 
 echo $ac_n "checking other links""... $ac_c" 1>&6
-echo "configure:2231: checking other links" >&5
+echo "configure:2281: checking other links" >&5
 if eval "test \"`echo '$''{'ac_cv_gmp_other_links'+set}'`\" = set"; then
   echo $ac_n "(cached) $ac_c" 1>&6
 else
@@ -2249,7 +2299,7 @@ fi
 MPN_OBJS="$ac_cv_gmp_asm_objs $ac_cv_gmp_other_objs"
 
 echo $ac_n "checking links to mpz sources in mpbsd""... $ac_c" 1>&6
-echo "configure:2253: checking links to mpz sources in mpbsd" >&5
+echo "configure:2303: checking links to mpz sources in mpbsd" >&5
 mpz_files="add.c cmp.c dmincl.c gcd.c mul.c pow_ui.c powm.c sqrtrem.c sub.c"
 if test '!' -d mpbsd; then mkdir mpbsd; fi
 for file in $mpz_files; do
