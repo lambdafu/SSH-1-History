@@ -271,6 +271,12 @@ if test -n "$x86_broken_align"; then
   AC_DEFINE(X86_BROKEN_ALIGN)
 fi
 
+# Make sure nm is in PATH, because it is needed by the next test.
+AC_PATH_PROG(NM_PATH, nm, no-nm)
+if test "$NM_PATH" = "no-nm"; then
+  AC_MSG_ERROR("The 'nm' program could not be found in PATH.")
+fi
+
 # Check whether an underscore gets prepended in names
 AC_CACHE_CHECK(whether underscore gets prepended in C function names,
   ac_cv_c_underscore, [
