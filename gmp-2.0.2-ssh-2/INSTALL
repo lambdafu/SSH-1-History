@@ -1,3 +1,7 @@
+THIS IS A MODIFIED VERSION OF GMP-2.0.2.  THE MODIFICATIONS WERE MADE
+TO INTEGRATE THIS CODE TO THE SSH SOFTWARE PACKAGE.  PLEASE CONTACT
+ssh-bugs@cs.hut.fi IF MORE INFORMATION IS NEEDED.
+-------------------------------------------------------------------------
 INSTALLING GMP
 ==============
 

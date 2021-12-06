@@ -32,11 +32,22 @@ urandom ()
 
 #if BITS_PER_MP_LIMB == 64 && !defined (__URANDOM)
 long random ();
+#ifdef _LONG_LONG_LIMB
+static inline unsigned long long
+urandom ()
+{
+  /* random() returns 31 bits, we want 64.  */
+  return (unsigned long long) random () ^
+    ((unsigned long long) random () << 31) ^
+    ((unsigned long long) random () << 62);
+}
+#else
 static inline unsigned long
 urandom ()
 {
   /* random() returns 31 bits, we want 64.  */
   return random () ^ (random () << 31) ^ (random () << 62);
 }
+#endif /* _LONG_LONG_LIMB */
 #define __URANDOM
 #endif

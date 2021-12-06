@@ -23,23 +23,23 @@ AUTOMAKE_OPTIONS = 1.0 foreign dist-zip no-dependencies
 
 SUBDIRS = mpn mpz mpf mpq mpbsd demos
 
-lib_LIBRARIES = gmp mp
+lib_LIBRARIES = libgmp.a libmp.a
 info_TEXINFOS = gmp.texi
 include_HEADERS = gmp.h mp.h
 noinst_HEADERS = gmp-impl.h longlong.h stack-alloc.h urandom.h
 
-gmp_SOURCES = memory.c mp_set_fns.c mp_clz_tab.c version.c stack-alloc.c \
+libgmp_a_SOURCES = memory.c mp_set_fns.c mp_clz_tab.c version.c stack-alloc.c \
   mp_bpl.c extract-double.c insert-double.c
-gmp_LIBADD = @LIBOBJS@
+libgmp_a_LIBADD = @LIBOBJS@
 
-mp_SOURCES = memory.c mp_set_fns.c mp_clz_tab.c version.c stack-alloc.c \
+libmp_a_SOURCES = memory.c mp_set_fns.c mp_clz_tab.c version.c stack-alloc.c \
   mp_bpl.c extract-double.c insert-double.c
 
 EXTRA_DIST = PROJECTS SPEED cre-mparam.c make.bat config.h.in acconfig.h
 
 INCLUDES = -I. -I$(srcdir) -Impn -I$(srcdir)/mpn
 
-libgmp.a: $(gmp_OBJECTS) $(gmp_LIBADD) all-recursive
+libgmp.a: $(libgmp_a_OBJECTS) $(libgmp_a_LIBADD) all-recursive
 	-rm -rf tmpdirgmp
 	-mkdir tmpdirgmp
 	for i in mpn mpz mpf mpq; \
@@ -48,7 +48,7 @@ libgmp.a: $(gmp_OBJECTS) $(gmp_LIBADD) all-recursive
 	    ( cd tmpdirgmp/$$i; $(AR) x ../../$$i/lib$$i.a ); \
 	  done
 	cd tmpdirgmp; for i in */*.o; do mv $$i `echo $$i | sed 's@/@_@g'`;done
-	cp $(gmp_OBJECTS) $(gmp_LIBADD) tmpdirgmp
+	cp $(libgmp_a_OBJECTS) $(libgmp_a_LIBADD) tmpdirgmp
 	cd tmpdirgmp; $(AR) cru $@ *.o
 	$(RANLIB) tmpdirgmp/$@
 	-rm -f $@
@@ -57,7 +57,7 @@ libgmp.a: $(gmp_OBJECTS) $(gmp_LIBADD) all-recursive
 
 # There appear to be strange problems with ar and parallel makes; I've added
 # dummy depend on libgmp.a here to serialize these.
-libmp.a: $(mp_OBJECTS) $(mp_LIBADD) all-recursive libgmp.a
+libmp.a: $(libmp_a_OBJECTS) $(libmp_a_LIBADD) all-recursive libgmp.a
 	-rm -rf tmpdirmp
 	-mkdir tmpdirmp
 	for i in mpn mpbsd; \
@@ -65,7 +65,7 @@ libmp.a: $(mp_OBJECTS) $(mp_LIBADD) all-recursive libgmp.a
 	    mkdir tmpdirmp/$$i; \
 	    ( cd tmpdirmp/$$i; $(AR) x ../../$$i/lib$$i.a ); \
 	  done
-	cp $(mp_OBJECTS) $(mp_LIBADD) tmpdirmp
+	cp $(libmp_a_OBJECTS) $(libmp_a_LIBADD) tmpdirmp
 	cd tmpdirmp; for i in */*.o; do mv $$i `echo $$i | sed 's@/@_@g'`; done
 	cd tmpdirmp; $(AR) cru $@ *.o
 	$(RANLIB) tmpdirmp/$@

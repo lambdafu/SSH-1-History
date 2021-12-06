@@ -1,3 +1,7 @@
+# THIS IS A MODIFIED VERSION OF GMP-2.0.2.  THE MODIFICATIONS WERE MADE
+# TO INTEGRATE THIS CODE TO THE SSH SOFTWARE PACKAGE.  PLEASE CONTACT
+# ssh-bugs@cs.hut.fi IF MORE INFORMATION IS NEEDED.
+#
 # Copyright (C) 1991, 1993, 1994, 1996 Free Software Foundation, Inc.
 
 # This file is part of the GNU MP Library.
@@ -19,13 +23,11 @@
 
 AC_INIT(gmp-impl.h)
 AC_PREREQ(2.10)
-
-PACKAGE=gmp
-VERSION=`grep gmp_version $srcdir/version.c | sed 's/.*"\(.*\)".*/\1/'`
+AM_INIT_AUTOMAKE(gmp,`grep gmp_version $srcdir/version.c | sed 's/.*"\(.*\)".*/\1/'`)
 
 AC_CANONICAL_HOST
 AC_MSG_CHECKING(cached information)
-hostcheck="$host $srcdir $CC $CFLAGS $LDFLAGS $LIBS $SFLAGS $enable_asm"
+hostcheck="$host"
 AC_CACHE_VAL(ac_cv_gmp_hostcheck, [ ac_cv_gmp_hostcheck="$hostcheck" ])
 if test "$ac_cv_gmp_hostcheck" != "$hostcheck"; then
   AC_MSG_RESULT(changed)
@@ -227,6 +229,16 @@ case "$host" in
   *-*-*)
     ;;
 esac
+
+# System specific settings
+
+case "$host" in
+  *-*-solaris*)
+    # If not using gcc add -Xs option to cpp so we can process assembler files
+    if test -z "$GCC"; then
+      CPP="$CPP -Xs"
+    fi
+esac
 changequote([, ])dnl
 
 # Add gcc-specific flags if using gcc
@@ -411,7 +423,7 @@ AC_CACHE_VAL(ac_cv_gmp_asm_status, [
 AC_MSG_RESULT($ac_cv_gmp_asm_status)
 if test "$ac_cv_gmp_asm_status" = "FAILED"; then
   AC_MSG_WARN(Assembly language optimizations failed and were disabled.)
-  AC_MSG_WARN(Please mail config.log to ssh-bugs@cs.hut.fi.)
+  AC_MSG_WARN(Please mail gmp-2.0.2-ssh-2/config.log to ssh-bugs@cs.hut.fi.)
 fi
 
 AC_MSG_CHECKING(asm links)

@@ -23,9 +23,9 @@ AUTOMAKE_OPTIONS = 1.0 foreign no-dependencies
 
 SUBDIRS = tests
 
-noinst_LIBRARIES = mpq
+noinst_LIBRARIES = libmpq.a
 
-mpq_SOURCES = add.c canonicalize.c clear.c cmp.c cmp_ui.c div.c get_d.c \
+libmpq_a_SOURCES = add.c canonicalize.c clear.c cmp.c cmp_ui.c div.c get_d.c \
  get_den.c get_num.c init.c inv.c mul.c neg.c set.c set_den.c set_num.c \
  set_si.c set_ui.c sub.c equal.c set_z.c
 

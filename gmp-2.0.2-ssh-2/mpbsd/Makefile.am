@@ -21,12 +21,12 @@
 
 AUTOMAKE_OPTIONS = 1.0 foreign no-dependencies
 
-noinst_LIBRARIES = mpbsd
+noinst_LIBRARIES = libmpbsd.a
 
-mpbsd_SOURCES = itom.c mdiv.c mfree.c min.c mout.c move.c mtox.c sdiv.c \
+libmpbsd_a_SOURCES = itom.c mdiv.c mfree.c min.c mout.c move.c mtox.c sdiv.c \
   xtom.c realloc.c
 
-mpbsd_LIBADD = add.o cmp.o gcd.o mul.o pow_ui.o powm.o sqrtrem.o sub.o
+libmpbsd_a_LIBADD = add.o cmp.o gcd.o mul.o pow_ui.o powm.o sqrtrem.o sub.o
 
 DISTCLEANFILES = add.c cmp.c dmincl.c gcd.c mul.c pow_ui.c powm.c \
   sqrtrem.c sub.c

@@ -1,4 +1,4 @@
-# Makefile.in generated automatically by automake 1.0 from Makefile.am
+# Makefile.in generated automatically by automake 1.1m from Makefile.am
 
 # Copyright (C) 1994, 1995, 1996 Free Software Foundation, Inc.
 # This Makefile.in is free software; the Free Software Foundation
@@ -51,26 +51,41 @@ pkgincludedir = $(includedir)/@PACKAGE@
 
 top_builddir = .
 
+ACLOCAL = @ACLOCAL@
+AUTOCONF = @AUTOCONF@
+AUTOMAKE = @AUTOMAKE@
+AUTOHEADER = @AUTOHEADER@
+
 INSTALL = @INSTALL@
 INSTALL_PROGRAM = @INSTALL_PROGRAM@
 INSTALL_DATA = @INSTALL_DATA@
 INSTALL_SCRIPT = @INSTALL_SCRIPT@
 transform = @program_transform_name@
+host_alias = @host_alias@
+host_triplet = @host@
+CC = @CC@
+INSTALL_SCRIPT = @INSTALL_SCRIPT@
+MPN_DISTCLEANFILES = @MPN_DISTCLEANFILES@
+MPN_OBJS = @MPN_OBJS@
+PACKAGE = @PACKAGE@
+RANLIB = @RANLIB@
+SFLAGS = @SFLAGS@
+VERSION = @VERSION@
 
 AUTOMAKE_OPTIONS = 1.0 foreign dist-zip no-dependencies
 
 SUBDIRS = mpn mpz mpf mpq mpbsd demos
 
-lib_LIBRARIES = gmp mp
+lib_LIBRARIES = libgmp.a libmp.a
 info_TEXINFOS = gmp.texi
 include_HEADERS = gmp.h mp.h
 noinst_HEADERS = gmp-impl.h longlong.h stack-alloc.h urandom.h
 
-gmp_SOURCES = memory.c mp_set_fns.c mp_clz_tab.c version.c stack-alloc.c \
+libgmp_a_SOURCES = memory.c mp_set_fns.c mp_clz_tab.c version.c stack-alloc.c \
   mp_bpl.c extract-double.c insert-double.c
-gmp_LIBADD = @LIBOBJS@
+libgmp_a_LIBADD = @LIBOBJS@
 
-mp_SOURCES = memory.c mp_set_fns.c mp_clz_tab.c version.c stack-alloc.c \
+libmp_a_SOURCES = memory.c mp_set_fns.c mp_clz_tab.c version.c stack-alloc.c \
   mp_bpl.c extract-double.c insert-double.c
 
 EXTRA_DIST = PROJECTS SPEED cre-mparam.c make.bat config.h.in acconfig.h
@@ -80,100 +95,97 @@ INCLUDES = -I. -I$(srcdir) -Impn -I$(srcdir)/mpn
 ASMDIRS = a29k alpha clipper cray generic hppa i960 m68k m88k mips2 mips3 \
   msdos ns32k power powerpc32 powerpc64 pyr sh sparc32 sparc64 vax \
   x86 z8000 z8000x
-mkinstalldirs = $(top_srcdir)/mkinstalldirs
-LIBRARIES = $(lib_LIBRARIES)
+ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
+mkinstalldirs = $(SHELL) $(top_srcdir)/mkinstalldirs
+CONFIG_CLEAN_FILES = 
+LIBRARIES =  $(lib_LIBRARIES)
 
-lib_LIBFILES = libgmp.a libmp.a
-
-CC = @CC@
-LEX = @LEX@
-YACC = @YACC@
 
 DEFS = @DEFS@ -I. -I$(srcdir) 
 CPPFLAGS = @CPPFLAGS@
-CFLAGS = @CFLAGS@
 LDFLAGS = @LDFLAGS@
 LIBS = @LIBS@
-
-COMPILE = $(CC) -c $(DEFS) $(INCLUDES) $(CPPFLAGS) $(CFLAGS)
-LINK = $(CC) $(LDFLAGS) -o $@
-gmp_OBJECTS = memory.o mp_set_fns.o mp_clz_tab.o version.o stack-alloc.o \
-mp_bpl.o extract-double.o insert-double.o
-EXTRA_gmp_SOURCES =
-mp_LIBADD =
-mp_OBJECTS = memory.o mp_set_fns.o mp_clz_tab.o version.o stack-alloc.o \
-mp_bpl.o extract-double.o insert-double.o
-EXTRA_mp_SOURCES =
-LIBFILES =  libgmp.a libmp.a
+libgmp_a_DEPENDENCIES =  @LIBOBJS@
+libgmp_a_OBJECTS =  memory.o mp_set_fns.o mp_clz_tab.o version.o \
+stack-alloc.o mp_bpl.o extract-double.o insert-double.o
+libmp_a_LIBADD = 
+libmp_a_OBJECTS =  memory.o mp_set_fns.o mp_clz_tab.o version.o \
+stack-alloc.o mp_bpl.o extract-double.o insert-double.o
 AR = ar
-RANLIB = @RANLIB@
-
+CFLAGS = @CFLAGS@
+COMPILE = $(CC) $(DEFS) $(INCLUDES) $(CPPFLAGS) $(CFLAGS)
+LINK = $(CC) $(LDFLAGS) -o $@
 MAKEINFO = makeinfo
 TEXI2DVI = texi2dvi
-INFOS = gmp.info*
 INFO_DEPS = gmp.info
 DVIS = gmp.dvi
 TEXINFOS = gmp.texi
+HEADERS =  $(include_HEADERS) $(noinst_HEADERS)
 
-HEADERS = $(noinst_HEADERS) $(include_HEADERS)
-
-DIST_COMMON = README COPYING.LIB ChangeLog INSTALL Makefile.am \
-Makefile.in NEWS README config.guess config.sub configure configure.in \
-install-sh mkinstalldirs random.c texinfo.tex
+DIST_COMMON =  README COPYING.LIB ChangeLog INSTALL Makefile.am \
+Makefile.in NEWS aclocal.m4 config.guess config.sub configure \
+configure.in install-sh missing mkinstalldirs random.c texinfo.tex
 
 
-PACKAGE = @PACKAGE@
-VERSION = @VERSION@
-
-DISTFILES = $(DIST_COMMON) $(SOURCES) $(BUILT_SOURCES) $(HEADERS) \
-	$(TEXINFOS) $(INFOS) $(MANS) $(EXTRA_DIST) $(DATA)
-DEP_DISTFILES = $(DIST_COMMON) $(SOURCES) $(BUILT_SOURCES) $(HEADERS) \
-	$(TEXINFOS) $(INFO_DEPS) $(MANS) $(EXTRA_DIST) $(DATA)
+DISTFILES = $(DIST_COMMON) $(SOURCES) $(HEADERS) $(TEXINFOS) $(EXTRA_DIST)
 
 TAR = tar
-SOURCES = $(gmp_SOURCES) $(mp_SOURCES)
-OBJECTS = $(gmp_OBJECTS) $(mp_OBJECTS)
+GZIP = --best
+SOURCES = $(libgmp_a_SOURCES) $(libmp_a_SOURCES)
+OBJECTS = $(libgmp_a_OBJECTS) $(libmp_a_OBJECTS)
 
 default: all
 
+.SUFFIXES:
+.SUFFIXES: .c .o .texi .texinfo .info .dvi .ps
+$(srcdir)/Makefile.in: Makefile.am $(top_srcdir)/configure.in $(ACLOCAL_M4) 
+	cd $(top_srcdir) && $(AUTOMAKE) --foreign Makefile
 
-$(srcdir)/Makefile.in: Makefile.am configure.in
-	cd $(srcdir) && automake Makefile
+Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status $(BUILT_SOURCES)
+	cd $(top_builddir) \
+	  && CONFIG_FILES=$@ CONFIG_HEADERS= $(SHELL) ./config.status
 
-# For an explanation of the following Makefile rules, see node
-# `Automatic Remaking' in GNU Autoconf documentation.
-Makefile: Makefile.in config.status
-	CONFIG_FILES=$@ CONFIG_HEADERS= ./config.status
+$(srcdir)/aclocal.m4:  configure.in 
+	cd $(srcdir) && $(ACLOCAL)
+
 config.status: configure
-	./config.status --recheck
-$(srcdir)/configure: configure.in $(ACLOCAL) $(CONFIGURE_DEPENDENCIES)
-	cd $(srcdir) && autoconf
+	$(SHELL) ./config.status --recheck
+$(srcdir)/configure: configure.in $(ACLOCAL_M4) $(CONFIGURE_DEPENDENCIES)
+	cd $(srcdir) && $(AUTOCONF)
 
 mostlyclean-libLIBRARIES:
 
 clean-libLIBRARIES:
-	rm -f $(lib_LIBFILES)
+	test -z "$(lib_LIBRARIES)" || rm -f $(lib_LIBRARIES)
 
 distclean-libLIBRARIES:
 
 maintainer-clean-libLIBRARIES:
 
-install-libLIBRARIES: $(lib_LIBFILES)
+install-libLIBRARIES: $(lib_LIBRARIES)
+	$(NORMAL_INSTALL)
 	$(mkinstalldirs) $(libdir)
-	list="$(lib_LIBFILES)"; for p in $$list; do \
+	list="$(lib_LIBRARIES)"; for p in $$list; do \
 	  if test -f $$p; then \
+	    echo " $(INSTALL_DATA) $$p $(libdir)/$$p"; \
 	    $(INSTALL_DATA) $$p $(libdir)/$$p; \
+	  else :; fi; \
+	done
+	$(POST_INSTALL)
+	@list="$(lib_LIBRARIES)"; for p in $$list; do \
+	  if test -f $$p; then \
+	    echo " $(RANLIB) $(libdir)/$$p"; \
 	    $(RANLIB) $(libdir)/$$p; \
 	  else :; fi; \
 	done
 
 uninstall-libLIBRARIES:
-	list="$(lib_LIBFILES)"; for p in $$list; do \
+	list="$(lib_LIBRARIES)"; for p in $$list; do \
 	  rm -f $(libdir)/$$p; \
 	done
 
 .c.o:
-	$(COMPILE) $<
+	$(COMPILE) -c $<
 
 mostlyclean-compile:
 	rm -f *.o core
@@ -186,41 +198,91 @@ distclean-compile:
 maintainer-clean-compile:
 
 gmp.info: gmp.texi
+gmp.dvi: gmp.texi
 
+
+DVIPS = dvips
 
 .texi.info:
-	$(MAKEINFO) -I$(srcdir) $< -o $(srcdir)/$@
+	cd $(srcdir) \
+	  && $(MAKEINFO) `echo $< | sed 's,.*/,,'`
 
 .texi.dvi:
-	TEXINPUTS=$(srcdir):$$TEXINPUTS $(TEXI2DVI) $<
+	TEXINPUTS=$(srcdir):$$TEXINPUTS \
+	  MAKEINFO='$(MAKEINFO) -I $(srcdir)' $(TEXI2DVI) $<
 
-install-info: $(INFO_DEPS)
+.texi:
+	cd $(srcdir) \
+	  && $(MAKEINFO) `echo $< | sed 's,.*/,,'`
+
+.texinfo.info:
+	cd $(srcdir) \
+	  && $(MAKEINFO) `echo $< | sed 's,.*/,,'`
+
+.texinfo:
+	cd $(srcdir) \
+	  && $(MAKEINFO) `echo $< | sed 's,.*/,,'`
+
+.texinfo.dvi:
+	TEXINPUTS=$(srcdir):$$TEXINPUTS $(TEXI2DVI) $<
+.dvi.ps:
+	$(DVIPS) $< -o $@
+
+install-info-am: $(INFO_DEPS)
+	$(NORMAL_INSTALL)
 	$(mkinstalldirs) $(infodir)
-	for file in $(INFO_DEPS); do		\
-	  for ifile in `cd $(srcdir) && echo $$file*`; do \
-	    $(INSTALL_DATA) $(srcdir)/$$ifile $(infodir)/$$ifile; \
-	  done;					\
+	@for file in $(INFO_DEPS); do \
+	  for ifile in `cd $(srcdir) && echo $$file $$file-[0-9] $$file-[0-9][0-9]`; do \
+	    if test -f $(srcdir)/$$ifile; then \
+	      echo " $(INSTALL_DATA) $(srcdir)/$$ifile $(infodir)/$$ifile"; \
+	      $(INSTALL_DATA) $(srcdir)/$$ifile $(infodir)/$$ifile; \
+	    else : ; fi; \
+	  done; \
 	done
+	$(POST_INSTALL)
+	@if $(SHELL) -c 'install-info --version' >/dev/null 2>&1; then \
+	  for file in $(INFO_DEPS); do \
+	    echo " install-info --info-dir=$(infodir) $(infodir)/$$file";\
+	    install-info --info-dir=$(infodir) $(infodir)/$$file; :;\
+	  done; \
+	else : ; fi
 
 uninstall-info:
-	cd $(srcdir) && for file in *.info*; do	\
-	  rm -f $(infodir)/$$file; \
+	if $(SHELL) -c 'install-info --version' >/dev/null 2>&1; then \
+	  ii=yes; \
+	else ii=; fi; \
+	for file in $(INFO_DEPS); do \
+	  (cd $(infodir) && rm -f $$file $$file-[0-9] $$file-[0-9][0-9]); \
+	  test -z $ii || install-info --info-dir=$(infodir) --remove $$file; \
+	done
+
+dist-info: $(INFO_DEPS)
+	for base in $(INFO_DEPS); do \
+	  d=$(srcdir); \
+	  for file in `cd $$d && eval echo $$base*`; do \
+	    test -f $(distdir)/$$file \
+	    || ln $$d/$$file $(distdir)/$$file 2> /dev/null \
+	    || cp -p $$d/$$file $(distdir)/$$file; \
+	  done; \
 	done
 
 mostlyclean-info:
 	rm -f gmp.aux gmp.cp gmp.cps gmp.dvi gmp.fn gmp.fns gmp.ky gmp.log \
-	  gmp.pg gmp.toc gmp.tp gmp.vr gmp.op
+	  gmp.pg gmp.toc gmp.tp gmp.tps gmp.vr gmp.vrs gmp.op gmp.tr \
+	  gmp.cv
 
 clean-info:
 
 distclean-info:
 
 maintainer-clean-info:
-	rm -f $(INFOS)
+	for i in $(INFO_DEPS); do rm -f `eval echo $$i*`; done
 
 install-includeHEADERS: $(include_HEADERS)
+	$(NORMAL_INSTALL)
 	$(mkinstalldirs) $(includedir)
-	list="$(include_HEADERS)"; for p in $$list; do \
+	@list="$(include_HEADERS)"; for p in $$list; do \
+	  echo " $(INSTALL_DATA) $(srcdir)/$$p $(includedir)/$$p"; \
 	  $(INSTALL_DATA) $(srcdir)/$$p $(includedir)/$$p; \
 	done
 
@@ -239,35 +301,34 @@ uninstall-includeHEADERS:
 @SET_MAKE@
 
 all-recursive install-data-recursive install-exec-recursive \
-installdirs-recursive install-recursive uninstall-recursive \
+installdirs-recursive install-recursive uninstall-recursive  \
 check-recursive installcheck-recursive info-recursive dvi-recursive \
 mostlyclean-recursive clean-recursive distclean-recursive \
 maintainer-clean-recursive:
-	for subdir in $(SUBDIRS); do		\
+	@for subdir in $(SUBDIRS); do \
 	  target=`echo $@ | sed s/-recursive//`; \
-	  echo making $$target in $$subdir;	\
-	  (cd $$subdir && $(MAKE) $$target)	\
+	  echo "Making $$target in $$subdir"; \
+	  (cd $$subdir && $(MAKE) $$target) \
 	   || case "$(MFLAGS)" in *k*) fail=yes;; *) exit 1;; esac; \
 	done && test -z "$$fail"
-
-tags: TAGS
-
 tags-recursive:
 	list="$(SUBDIRS)"; for subdir in $$list; do \
 	  (cd $$subdir && $(MAKE) tags); \
 	done
 
-TAGS: tags-recursive $(HEADERS) $(SOURCES) $(CONFIG_HEADER) \
-		$(TAGS_DEPENDENCIES)
+tags: TAGS
+
+ID: $(HEADERS) $(SOURCES)
+	here=`pwd` && cd $(srcdir) && mkid -f$$here/ID $(SOURCES) $(HEADERS)
+
+TAGS: tags-recursive $(HEADERS) $(SOURCES)  $(TAGS_DEPENDENCIES)
 	tags=; \
 	here=`pwd`; \
-	for subdir in $(SUBDIRS); do \
-	  test -f $$subdir/TAGS && { \
-	    tags="$$tags -i $$here/$$subdir/TAGS"; \
-	  } \
+	list="$(SUBDIRS)"; for subdir in $$list; do \
+	  test -f $$subdir/TAGS && tags="$$tags -i $$here/$$subdir/TAGS"; \
 	done; \
-	test -z "$(ETAGS_ARGS)$(CONFIG_HEADER)$(SOURCES)$(HEADERS)$$tags" \
-	  || etags $(ETAGS_ARGS) $$tags $(CONFIG_HEADER) $(SOURCES) $(HEADERS)
+	test -z "$(ETAGS_ARGS)$(SOURCES)$(HEADERS)$$tags" \
+	  || cd $(srcdir) && etags $(ETAGS_ARGS) $$tags  $(SOURCES) $(HEADERS) -o $$here/TAGS
 
 mostlyclean-tags:
 
@@ -284,13 +345,14 @@ distdir = $(PACKAGE)-$(VERSION)
 # tarfile.
 distcheck: dist
 	rm -rf $(distdir)
-	$(TAR) zxf $(distdir).tar.gz
+	GZIP=$(GZIP) $(TAR) zxf $(distdir).tar.gz
 	mkdir $(distdir)/=build
 	mkdir $(distdir)/=inst
 	dc_install_base=`cd $(distdir)/=inst && pwd`; \
 	cd $(distdir)/=build \
 	  && ../configure --srcdir=.. --prefix=$$dc_install_base \
 	  && $(MAKE) \
+	  && $(MAKE) dvi \
 	  && $(MAKE) check \
 	  && $(MAKE) install \
 	  && $(MAKE) installcheck \
@@ -300,53 +362,54 @@ distcheck: dist
 	echo "$(distdir).tar.gz is ready for distribution"; \
 	echo "========================"
 dist: distdir
-	chmod -R a+r $(distdir)
-	$(TAR) chozf $(distdir).tar.gz $(distdir)
+	-chmod -R a+r $(distdir)
+	GZIP=$(GZIP) $(TAR) chozf $(distdir).tar.gz $(distdir)
 	rm -rf $(distdir)
 dist-zip: distdir
-	chmod -R a+r $(distdir)
-	zip -rq $(distdir).zip $(distdir)
+	-chmod -R a+r $(distdir)
 	rm -rf $(distdir)
-distdir: $(DEP_DISTFILES)
+dist-all: distdir
+	-chmod -R a+r $(distdir)
+	GZIP=$(GZIP) $(TAR) chozf $(distdir).tar.gz $(distdir)
+	rm -rf $(distdir)
+distdir: $(DISTFILES)
 	rm -rf $(distdir)
 	mkdir $(distdir)
-	chmod 777 $(distdir)
-	distdir=`cd $(distdir) && pwd` \
-	  && cd $(srcdir) \
-	  && automake --include-deps --output-dir=$$distdir --strictness=foreign
-	@for file in `cd $(srcdir) && echo $(DISTFILES)`; do \
+	-chmod 755 $(distdir)
+	@for file in $(DISTFILES); do \
+	  d=$(srcdir); \
 	  test -f $(distdir)/$$file \
-	  || ln $(srcdir)/$$file $(distdir)/$$file 2> /dev/null \
-	  || cp -p $(srcdir)/$$file $(distdir)/$$file; \
+	  || ln $$d/$$file $(distdir)/$$file 2> /dev/null \
+	  || cp -p $$d/$$file $(distdir)/$$file; \
 	done
 	for subdir in $(SUBDIRS); do		\
 	  test -d $(distdir)/$$subdir		\
 	  || mkdir $(distdir)/$$subdir		\
 	  || exit 1;				\
-	  chmod 777 $(distdir)/$$subdir;	\
+	  chmod 755 $(distdir)/$$subdir;	\
 	  (cd $$subdir && $(MAKE) distdir=../$(distdir)/$$subdir distdir) \
 	    || exit 1; \
 	done
-	$(MAKE) dist-hook
+	$(MAKE) distdir="$(distdir)" dist-info
+	$(MAKE) distdir="$(distdir)" dist-hook
 info: $(INFO_DEPS) info-recursive
-
 dvi: $(DVIS) dvi-recursive
-
-check: check-recursive
-
+check: all-am
+	$(MAKE) check-recursive
 installcheck: installcheck-recursive
-
-all-am: $(INFO_DEPS) $(LIBFILES) $(HEADERS) Makefile
+all-am: $(INFO_DEPS) $(LIBRARIES) $(HEADERS) Makefile
 
 install-exec-am: install-libLIBRARIES
 
-install-data-am: install-info install-includeHEADERS
+install-data-am: install-info-am install-includeHEADERS
 
 uninstall-am: uninstall-libLIBRARIES uninstall-info uninstall-includeHEADERS
 
 install-exec: install-exec-recursive install-exec-am
+	$(NORMAL_INSTALL)
 
 install-data: install-data-recursive install-data-am
+	$(NORMAL_INSTALL)
 
 install: install-recursive install-exec-am install-data-am
 	@:
@@ -369,7 +432,8 @@ clean-generic:
 
 distclean-generic:
 	rm -f Makefile $(DISTCLEANFILES)
-	rm -f config.cache config.log $(CONFIG_HEADER) stamp-h
+	rm -f config.cache config.log stamp-h
+	test -z "$(CONFIG_CLEAN_FILES)" || rm -f $(CONFIG_CLEAN_FILES)
 
 maintainer-clean-generic:
 	test -z "$(MAINTAINERCLEANFILES)" || rm -f $(MAINTAINERCLEANFILES)
@@ -378,24 +442,24 @@ mostlyclean-am:  mostlyclean-libLIBRARIES mostlyclean-compile \
 		mostlyclean-info mostlyclean-tags mostlyclean-generic
 
 clean-am:  clean-libLIBRARIES clean-compile clean-info clean-tags \
-		clean-generic mostlyclean-am 
+		clean-generic mostlyclean-am
 
 distclean-am:  distclean-libLIBRARIES distclean-compile distclean-info \
-		distclean-tags distclean-generic clean-am 
+		distclean-tags distclean-generic clean-am
 
 maintainer-clean-am:  maintainer-clean-libLIBRARIES \
 		maintainer-clean-compile maintainer-clean-info \
 		maintainer-clean-tags maintainer-clean-generic \
-		distclean-am 
+		distclean-am
 
-mostlyclean:  mostlyclean-am mostlyclean-recursive
+mostlyclean:  mostlyclean-recursive mostlyclean-am
 
-clean:  clean-am clean-recursive
+clean:  clean-recursive clean-am
 
-distclean:  distclean-am distclean-recursive
+distclean:  distclean-recursive distclean-am
 	rm -f config.status
 
-maintainer-clean:  maintainer-clean-am maintainer-clean-recursive
+maintainer-clean:  maintainer-clean-recursive maintainer-clean-am
 	@echo "This command is intended for maintainers to use;"
 	@echo "it deletes files that may require special tools to rebuild."
 	rm -f config.status
@@ -403,7 +467,7 @@ maintainer-clean:  maintainer-clean-am maintainer-clean-recursive
 .PHONY: default mostlyclean-libLIBRARIES distclean-libLIBRARIES \
 clean-libLIBRARIES maintainer-clean-libLIBRARIES uninstall-libLIBRARIES \
 install-libLIBRARIES mostlyclean-compile distclean-compile \
-clean-compile maintainer-clean-compile install-info uninstall-info \
+clean-compile maintainer-clean-compile install-info-am uninstall-info \
 mostlyclean-info distclean-info clean-info maintainer-clean-info \
 uninstall-includeHEADERS install-includeHEADERS install-data-recursive \
 uninstall-data-recursive install-exec-recursive \
@@ -411,14 +475,14 @@ uninstall-exec-recursive installdirs-recursive uninstalldirs-recursive \
 all-recursive check-recursive installcheck-recursive info-recursive \
 dvi-recursive mostlyclean-recursive distclean-recursive clean-recursive \
 maintainer-clean-recursive tags tags-recursive mostlyclean-tags \
-distclean-tags clean-tags maintainer-clean-tags distdir info dvi check \
+distclean-tags clean-tags maintainer-clean-tags distdir info dvi \
 installcheck all-am install-exec-am install-data-am uninstall-am \
 install-exec install-data install uninstall all installdirs \
 mostlyclean-generic distclean-generic clean-generic \
 maintainer-clean-generic clean mostlyclean distclean maintainer-clean
 
 
-libgmp.a: $(gmp_OBJECTS) $(gmp_LIBADD) all-recursive
+libgmp.a: $(libgmp_a_OBJECTS) $(libgmp_a_LIBADD) all-recursive
 	-rm -rf tmpdirgmp
 	-mkdir tmpdirgmp
 	for i in mpn mpz mpf mpq; \
@@ -427,7 +491,7 @@ libgmp.a: $(gmp_OBJECTS) $(gmp_LIBADD) all-recursive
 	    ( cd tmpdirgmp/$$i; $(AR) x ../../$$i/lib$$i.a ); \
 	  done
 	cd tmpdirgmp; for i in */*.o; do mv $$i `echo $$i | sed 's@/@_@g'`;done
-	cp $(gmp_OBJECTS) $(gmp_LIBADD) tmpdirgmp
+	cp $(libgmp_a_OBJECTS) $(libgmp_a_LIBADD) tmpdirgmp
 	cd tmpdirgmp; $(AR) cru $@ *.o
 	$(RANLIB) tmpdirgmp/$@
 	-rm -f $@
@@ -436,7 +500,7 @@ libgmp.a: $(gmp_OBJECTS) $(gmp_LIBADD) all-recursive
 
 # There appear to be strange problems with ar and parallel makes; I've added
 # dummy depend on libgmp.a here to serialize these.
-libmp.a: $(mp_OBJECTS) $(mp_LIBADD) all-recursive libgmp.a
+libmp.a: $(libmp_a_OBJECTS) $(libmp_a_LIBADD) all-recursive libgmp.a
 	-rm -rf tmpdirmp
 	-mkdir tmpdirmp
 	for i in mpn mpbsd; \
@@ -444,7 +508,7 @@ libmp.a: $(mp_OBJECTS) $(mp_LIBADD) all-recursive libgmp.a
 	    mkdir tmpdirmp/$$i; \
 	    ( cd tmpdirmp/$$i; $(AR) x ../../$$i/lib$$i.a ); \
 	  done
-	cp $(mp_OBJECTS) $(mp_LIBADD) tmpdirmp
+	cp $(libmp_a_OBJECTS) $(libmp_a_LIBADD) tmpdirmp
 	cd tmpdirmp; for i in */*.o; do mv $$i `echo $$i | sed 's@/@_@g'`; done
 	cd tmpdirmp; $(AR) cru $@ *.o
 	$(RANLIB) tmpdirmp/$@
@@ -458,8 +522,6 @@ dist-hook:
 	  (cd $(srcdir)/mpn && tar cf - $$dir) |      \
              (cd $(distdir)/mpn && tar xpf -);        \
 	done
-.SUFFIXES:
-.SUFFIXES: .c .o .texi .info .dvi
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.

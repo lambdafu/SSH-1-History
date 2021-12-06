@@ -23,18 +23,12 @@ AUTOMAKE_OPTIONS = 1.0 foreign no-dependencies
 
 SUBDIRS = tests
 
-noinst_LIBRARIES = mpn
+noinst_LIBRARIES = libmpn.a
 noinst_HEADERS = sysdep.h
 
-mpn_SOURCES = mp_bases.c
-mpn_LIBADD = @MPN_OBJS@
-
-EXTRA_LIBADD = inlines.o add_n.o addmul_1.o cmp.o divmod_1.o \
-  divrem.o divrem_1.o dump.o lshift.o mod_1.o mul.o mul_1.o mul_n.o \
-  random2.o rshift.o sqrtrem.o sub_n.o submul_1.o get_str.o set_str.o \
-  scan0.o scan1.o popcount.o hamdist.o gcd_1.o pre_mod_1.o perfsqr.o \
-  bdivmod.o gcd.o gcdext.o \
-  udiv.o udiv_nfp.o udiv_fp.o udiv_qrnnd.o udiv_w_sdiv.o
+libmpn_a_SOURCES = mp_bases.c
+libmpn_a_LIBADD = @MPN_OBJS@
+libmpn_a_DEPENDENCIES = @MPN_OBJS@
 
 INCLUDES = -I.. -I$(srcdir)/..
 
@@ -42,6 +36,7 @@ SFLAGS = @SFLAGS@
 CPP = @CPP@
 
 SUFFIXES = .S .s
+
 DISTCLEANFILES = @MPN_DISTCLEANFILES@
 CLEANFILES = tmp-*.s
 

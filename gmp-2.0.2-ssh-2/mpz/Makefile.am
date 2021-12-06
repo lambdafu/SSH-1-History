@@ -23,9 +23,9 @@ AUTOMAKE_OPTIONS = 1.0 foreign no-dependencies
 
 SUBDIRS = tests
 
-noinst_LIBRARIES = mpz
+noinst_LIBRARIES = libmpz.a
 
-mpz_SOURCES = init.c set.c set_ui.c set_si.c set_str.c set_d.c set_f.c \
+libmpz_a_SOURCES = init.c set.c set_ui.c set_si.c set_str.c set_d.c set_f.c \
   set_q.c iset.c iset_ui.c iset_si.c iset_str.c iset_d.c clear.c \
   get_ui.c get_si.c get_str.c get_d.c size.c sizeinbase.c \
   add.c add_ui.c sub.c sub_ui.c mul.c mul_ui.c \

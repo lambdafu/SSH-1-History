@@ -1,4 +1,4 @@
-# Makefile.in generated automatically by automake 1.0 from Makefile.am
+# Makefile.in generated automatically by automake 1.1m from Makefile.am
 
 # Copyright (C) 1994, 1995, 1996 Free Software Foundation, Inc.
 # This Makefile.in is free software; the Free Software Foundation
@@ -51,83 +51,90 @@ pkgincludedir = $(includedir)/@PACKAGE@
 
 top_builddir = ..
 
+ACLOCAL = @ACLOCAL@
+AUTOCONF = @AUTOCONF@
+AUTOMAKE = @AUTOMAKE@
+AUTOHEADER = @AUTOHEADER@
+
 INSTALL = @INSTALL@
 INSTALL_PROGRAM = @INSTALL_PROGRAM@
 INSTALL_DATA = @INSTALL_DATA@
 INSTALL_SCRIPT = @INSTALL_SCRIPT@
 transform = @program_transform_name@
+host_alias = @host_alias@
+host_triplet = @host@
+CC = @CC@
+INSTALL_SCRIPT = @INSTALL_SCRIPT@
+MPN_DISTCLEANFILES = @MPN_DISTCLEANFILES@
+MPN_OBJS = @MPN_OBJS@
+PACKAGE = @PACKAGE@
+RANLIB = @RANLIB@
+SFLAGS = @SFLAGS@
+VERSION = @VERSION@
 
 AUTOMAKE_OPTIONS = 1.0 foreign no-dependencies
 
-noinst_LIBRARIES = mpbsd
+noinst_LIBRARIES = libmpbsd.a
 
-mpbsd_SOURCES = itom.c mdiv.c mfree.c min.c mout.c move.c mtox.c sdiv.c \
+libmpbsd_a_SOURCES = itom.c mdiv.c mfree.c min.c mout.c move.c mtox.c sdiv.c \
   xtom.c realloc.c
 
-mpbsd_LIBADD = add.o cmp.o gcd.o mul.o pow_ui.o powm.o sqrtrem.o sub.o
+libmpbsd_a_LIBADD = add.o cmp.o gcd.o mul.o pow_ui.o powm.o sqrtrem.o sub.o
 
 DISTCLEANFILES = add.c cmp.c dmincl.c gcd.c mul.c pow_ui.c powm.c \
   sqrtrem.c sub.c
 
 INCLUDES = -I.. -I$(srcdir)/.. -I../mpn -I$(srcdir)/../mpn
-mkinstalldirs = $(top_srcdir)/mkinstalldirs
-LIBRARIES = $(noinst_LIBRARIES)
+mkinstalldirs = $(SHELL) $(top_srcdir)/mkinstalldirs
+CONFIG_CLEAN_FILES = 
+LIBRARIES =  $(noinst_LIBRARIES)
 
-noinst_LIBFILES = libmpbsd.a
-
-CC = @CC@
-LEX = @LEX@
-YACC = @YACC@
 
 DEFS = @DEFS@ -I. -I$(srcdir) 
 CPPFLAGS = @CPPFLAGS@
-CFLAGS = @CFLAGS@
 LDFLAGS = @LDFLAGS@
 LIBS = @LIBS@
-
-COMPILE = $(CC) -c $(DEFS) $(INCLUDES) $(CPPFLAGS) $(CFLAGS)
-LINK = $(CC) $(LDFLAGS) -o $@
-mpbsd_OBJECTS = itom.o mdiv.o mfree.o min.o mout.o move.o mtox.o sdiv.o \
-xtom.o realloc.o
-EXTRA_mpbsd_SOURCES =
-LIBFILES =  libmpbsd.a
+libmpbsd_a_DEPENDENCIES =  add.o cmp.o gcd.o mul.o pow_ui.o powm.o \
+sqrtrem.o sub.o
+libmpbsd_a_OBJECTS =  itom.o mdiv.o mfree.o min.o mout.o move.o mtox.o \
+sdiv.o xtom.o realloc.o
 AR = ar
-RANLIB = @RANLIB@
-DIST_COMMON = Makefile.am Makefile.in
+CFLAGS = @CFLAGS@
+COMPILE = $(CC) $(DEFS) $(INCLUDES) $(CPPFLAGS) $(CFLAGS)
+LINK = $(CC) $(LDFLAGS) -o $@
+DIST_COMMON =  Makefile.am Makefile.in
 
 
-PACKAGE = @PACKAGE@
-VERSION = @VERSION@
-
-DISTFILES = $(DIST_COMMON) $(SOURCES) $(BUILT_SOURCES) $(HEADERS) \
-	$(TEXINFOS) $(INFOS) $(MANS) $(EXTRA_DIST) $(DATA)
-DEP_DISTFILES = $(DIST_COMMON) $(SOURCES) $(BUILT_SOURCES) $(HEADERS) \
-	$(TEXINFOS) $(INFO_DEPS) $(MANS) $(EXTRA_DIST) $(DATA)
+DISTFILES = $(DIST_COMMON) $(SOURCES) $(HEADERS) $(TEXINFOS) $(EXTRA_DIST)
 
 TAR = tar
-SOURCES = $(mpbsd_SOURCES)
-OBJECTS = $(mpbsd_OBJECTS)
+GZIP = --best
+SOURCES = $(libmpbsd_a_SOURCES)
+OBJECTS = $(libmpbsd_a_OBJECTS)
 
 default: all
 
+.SUFFIXES:
+.SUFFIXES: .c .o
+$(srcdir)/Makefile.in: Makefile.am $(top_srcdir)/configure.in $(ACLOCAL_M4) 
+	cd $(top_srcdir) && $(AUTOMAKE) --foreign mpbsd/Makefile
 
-$(srcdir)/Makefile.in: Makefile.am $(top_srcdir)/configure.in
-	cd $(top_srcdir) && automake $(subdir)/Makefile
+Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status $(BUILT_SOURCES)
+	cd $(top_builddir) \
+	  && CONFIG_FILES=$(subdir)/$@ CONFIG_HEADERS= $(SHELL) ./config.status
 
-Makefile: $(top_builddir)/config.status Makefile.in
-	cd $(top_builddir) && CONFIG_FILES=$(subdir)/$@ CONFIG_HEADERS= ./config.status
 
 mostlyclean-noinstLIBRARIES:
 
 clean-noinstLIBRARIES:
-	rm -f $(noinst_LIBFILES)
+	test -z "$(noinst_LIBRARIES)" || rm -f $(noinst_LIBRARIES)
 
 distclean-noinstLIBRARIES:
 
 maintainer-clean-noinstLIBRARIES:
 
 .c.o:
-	$(COMPILE) $<
+	$(COMPILE) -c $<
 
 mostlyclean-compile:
 	rm -f *.o core
@@ -139,18 +146,24 @@ distclean-compile:
 
 maintainer-clean-compile:
 
-libmpbsd.a: $(mpbsd_OBJECTS) $(mpbsd_LIBADD)
+libmpbsd.a: $(libmpbsd_a_OBJECTS) $(libmpbsd_a_DEPENDENCIES)
 	rm -f libmpbsd.a
-	$(AR) cru libmpbsd.a $(mpbsd_OBJECTS) $(mpbsd_LIBADD)
+	$(AR) cru libmpbsd.a $(libmpbsd_a_OBJECTS) $(libmpbsd_a_LIBADD)
 	$(RANLIB) libmpbsd.a
+
+tags: TAGS
 
 ID: $(HEADERS) $(SOURCES)
 	here=`pwd` && cd $(srcdir) && mkid -f$$here/ID $(SOURCES) $(HEADERS)
 
-tags: TAGS
-
-TAGS: $(HEADERS) $(SOURCES) $(TAGS_DEPENDENCIES)
-	here=`pwd` && cd $(srcdir) && etags $(ETAGS_ARGS) $(SOURCES) $(HEADERS) -o $$here/TAGS
+TAGS:  $(HEADERS) $(SOURCES)  $(TAGS_DEPENDENCIES)
+	tags=; \
+	here=`pwd`; \
+	list="$(SUBDIRS)"; for subdir in $$list; do \
+	  test -f $$subdir/TAGS && tags="$$tags -i $$here/$$subdir/TAGS"; \
+	done; \
+	test -z "$(ETAGS_ARGS)$(SOURCES)$(HEADERS)$$tags" \
+	  || cd $(srcdir) && etags $(ETAGS_ARGS) $$tags  $(SOURCES) $(HEADERS) -o $$here/TAGS
 
 mostlyclean-tags:
 
@@ -161,32 +174,33 @@ distclean-tags:
 
 maintainer-clean-tags:
 
-subdir = mpbsd
 distdir = $(top_builddir)/$(PACKAGE)-$(VERSION)/$(subdir)
-distdir: $(DEP_DISTFILES)
-	@for file in `cd $(srcdir) && echo $(DISTFILES)`; do \
+
+subdir = mpbsd
+distdir: $(DISTFILES)
+	@for file in $(DISTFILES); do \
+	  d=$(srcdir); \
 	  test -f $(distdir)/$$file \
-	  || ln $(srcdir)/$$file $(distdir)/$$file 2> /dev/null \
-	  || cp -p $(srcdir)/$$file $(distdir)/$$file; \
+	  || ln $$d/$$file $(distdir)/$$file 2> /dev/null \
+	  || cp -p $$d/$$file $(distdir)/$$file; \
 	done
 info:
-
 dvi:
-
 check: all
-
+	$(MAKE)
 installcheck:
-
 install-exec: 
+	$(NORMAL_INSTALL)
 
 install-data: 
+	$(NORMAL_INSTALL)
 
 install: install-exec install-data all
 	@:
 
 uninstall: 
 
-all: $(LIBFILES) Makefile
+all: $(LIBRARIES) Makefile
 
 install-strip:
 	$(MAKE) INSTALL_PROGRAM='$(INSTALL_PROGRAM) -s' install
@@ -201,7 +215,8 @@ clean-generic:
 
 distclean-generic:
 	rm -f Makefile $(DISTCLEANFILES)
-	rm -f config.cache config.log $(CONFIG_HEADER) stamp-h
+	rm -f config.cache config.log stamp-h
+	test -z "$(CONFIG_CLEAN_FILES)" || rm -f $(CONFIG_CLEAN_FILES)
 
 maintainer-clean-generic:
 	test -z "$(MAINTAINERCLEANFILES)" || rm -f $(MAINTAINERCLEANFILES)
@@ -210,15 +225,15 @@ mostlyclean:  mostlyclean-noinstLIBRARIES mostlyclean-compile \
 		mostlyclean-tags mostlyclean-generic
 
 clean:  clean-noinstLIBRARIES clean-compile clean-tags clean-generic \
-		mostlyclean 
+		mostlyclean
 
 distclean:  distclean-noinstLIBRARIES distclean-compile distclean-tags \
-		distclean-generic clean 
+		distclean-generic clean
 	rm -f config.status
 
 maintainer-clean:  maintainer-clean-noinstLIBRARIES \
 		maintainer-clean-compile maintainer-clean-tags \
-		maintainer-clean-generic distclean 
+		maintainer-clean-generic distclean
 	@echo "This command is intended for maintainers to use;"
 	@echo "it deletes files that may require special tools to rebuild."
 
@@ -226,13 +241,11 @@ maintainer-clean:  maintainer-clean-noinstLIBRARIES \
 clean-noinstLIBRARIES maintainer-clean-noinstLIBRARIES \
 mostlyclean-compile distclean-compile clean-compile \
 maintainer-clean-compile tags mostlyclean-tags distclean-tags \
-clean-tags maintainer-clean-tags distdir info dvi check installcheck \
+clean-tags maintainer-clean-tags distdir info dvi installcheck \
 install-exec install-data install uninstall all installdirs \
 mostlyclean-generic distclean-generic clean-generic \
 maintainer-clean-generic clean mostlyclean distclean maintainer-clean
 
-.SUFFIXES:
-.SUFFIXES: .c .o
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.

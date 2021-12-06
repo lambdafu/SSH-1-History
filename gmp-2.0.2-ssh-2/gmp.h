@@ -27,6 +27,11 @@ MA 02111-1307, USA. */
 #include <stddef.h>
 #undef __need_size_t
 
+#if defined (__mips) && defined (_ABIN32)
+/* Force the use of 64-bit limbs for all 64-bit MIPS CPUs if ABI permits.  */
+#define _LONG_LONG_LIMB
+#endif
+
 #if defined (__STDC__) || defined (__cplusplus)
 #define __gmp_const const
 #else
