@@ -1,4 +1,4 @@
-This is Info file gmp.info, produced by Makeinfo version 1.67 from the
+This is Info file gmp.info, produced by Makeinfo version 1.68 from the
 input file gmp.texi.
 
 START-INFO-DIR-ENTRY
@@ -1007,8 +1007,8 @@ Concept Index
 * Floating-point functions:              Floating-point Functions.
 * Floating-point number:                 MP Basics.
 * gmp.h:                                 MP Basics.
-* I/O functions <1>:                     I/O of Floats.
-* I/O functions:                         I/O of Integers.
+* I/O functions <1>:                     I/O of Integers.
+* I/O functions:                         I/O of Floats.
 * Initialization and assignment functions <1>: Simultaneous Float Init & Assign.
 * Initialization and assignment functions: Simultaneous Integer Init & Assign.
 * Input functions <1>:                   I/O of Integers.
